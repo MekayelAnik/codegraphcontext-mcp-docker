@@ -55,7 +55,7 @@ CodeGraphContext MCP Server transforms your codebase into a queryable knowledge 
 | Tag | Stability | Use Case |
 |:----|:---------:|:---------|
 | `stable` | ⭐⭐⭐ | **Production (recommended)** |
-| `latest` | ⭐⭐⭐ | Latest stable features |
+| `latest` | ⭐⭐⭐ | Latest features |
 | `0.1.x` | ⭐⭐⭐ | Version pinning |
 | `beta` | ⚠️ | Testing only |
 
@@ -86,13 +86,13 @@ services:
       - neo4j_data:/data
 
   codegraphcontext-mcp:
-    image: mekayelanik/codegraphcontext-mcp:stable
+    image: mekayelanik/codegraphcontext-mcp:latest
     container_name: cgc-mcp
     restart: unless-stopped
     ports:
-      - "8010:8010"
+      - "8045:8045"
     environment:
-      - PORT=8010
+      - PORT=8045
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=your-secure-password
@@ -121,25 +121,25 @@ docker compose logs -f cgc-mcp
 docker run -d \
   --name=cgc-mcp \
   --restart=unless-stopped \
-  -p 8010:8010 \
-  -e PORT=8010 \
+  -p 8045:8045 \
+  -e PORT=8045 \
   -e NEO4J_URI=bolt://your-neo4j:7687 \
   -e NEO4J_USERNAME=neo4j \
   -e NEO4J_PASSWORD=your-password \
   -e PUID=1000 \
   -e PGID=1000 \
   -e PROTOCOL=SHTTP \
-  mekayelanik/codegraphcontext-mcp:stable
+  mekayelanik/codegraphcontext-mcp:latest
 ```
 
 ### Access Endpoints
 
 | Protocol | Endpoint | Use Case |
 |:---------|:---------|:---------|
-| **HTTP** | `http://host-ip:8010/mcp` | **Recommended** |
-| **SSE** | `http://host-ip:8010/sse` | Real-time streaming |
-| **WebSocket** | `ws://host-ip:8010/message` | Bidirectional |
-| **Health** | `http://host-ip:8010/healthz` | Monitoring |
+| **HTTP** | `http://host-ip:8045/mcp` | **Recommended** |
+| **SSE** | `http://host-ip:8045/sse` | Real-time streaming |
+| **WebSocket** | `ws://host-ip:8045/message` | Bidirectional |
+| **Health** | `http://host-ip:8045/healthz` | Monitoring |
 
 > ⏱️ Allow 30-60 seconds for initialization on ARM devices
 
@@ -151,7 +151,7 @@ docker run -d \
 
 | Variable | Default | Description |
 |:---------|:-------:|:------------|
-| `PORT` | `8010` | Internal server port |
+| `PORT` | `8045` | Internal server port |
 | `NEO4J_URI` | `bolt://localhost:7687` | Neo4j connection string |
 | `NEO4J_USERNAME` | `neo4j` | Database username |
 | `NEO4J_PASSWORD` | _(required)_ | Database password |
@@ -226,7 +226,7 @@ Add to `.vscode/settings.json`:
 {
   "mcp.servers": {
     "codegraphcontext": {
-      "url": "http://host-ip:8010/mcp",
+      "url": "http://host-ip:8045/mcp",
       "transport": "http",
       "autoApprove": [
         "add_code_to_graph",
@@ -254,7 +254,7 @@ Add to `.vscode/settings.json`:
   "mcpServers": {
     "codegraphcontext": {
       "transport": "http",
-      "url": "http://localhost:8010/mcp"
+      "url": "http://localhost:8045/mcp"
     }
   }
 }
@@ -269,7 +269,7 @@ Add to `~/.cursor/mcp.json`:
   "mcpServers": {
     "codegraphcontext": {
       "transport": "http",
-      "url": "http://host-ip:8010/mcp"
+      "url": "http://host-ip:8045/mcp"
     }
   }
 }
@@ -284,7 +284,7 @@ Add to `.codeium/mcp_settings.json`:
   "mcpServers": {
     "codegraphcontext": {
       "transport": "http",
-      "url": "http://host-ip:8010/mcp"
+      "url": "http://host-ip:8045/mcp"
     }
   }
 }
@@ -299,7 +299,7 @@ Add to `~/.config/claude-code/mcp_config.json`:
   "mcpServers": {
     "codegraphcontext": {
       "transport": "http",
-      "url": "http://localhost:8010/mcp"
+      "url": "http://localhost:8045/mcp"
     }
   }
 }
@@ -310,7 +310,7 @@ Or configure via CLI:
 ```bash
 claude-code config mcp add codegraphcontext \
   --transport http \
-  --url http://localhost:8010/mcp
+  --url http://localhost:8045/mcp
 ```
 
 ### GitHub Copilot CLI
@@ -322,7 +322,7 @@ Add to `~/.github-copilot/mcp.json`:
   "mcpServers": {
     "codegraphcontext": {
       "transport": "http",
-      "url": "http://host-ip:8010/mcp"
+      "url": "http://host-ip:8045/mcp"
     }
   }
 }
@@ -331,7 +331,7 @@ Add to `~/.github-copilot/mcp.json`:
 Or use environment variable:
 
 ```bash
-export GITHUB_COPILOT_MCP_SERVERS='{"codegraphcontext":{"transport":"http","url":"http://localhost:8010/mcp"}}'
+export GITHUB_COPILOT_MCP_SERVERS='{"codegraphcontext":{"transport":"http","url":"http://localhost:8045/mcp"}}'
 ```
 
 ---
@@ -501,8 +501,8 @@ services:
 
 - ✅ Docker 23.0+
 - ✅ Neo4j running and accessible
-- ✅ Port 8010 available
-- ✅ Latest stable image
+- ✅ Port 8045 available
+- ✅ Latest image
 - ✅ Correct configuration
 
 ### Common Issues
@@ -531,8 +531,8 @@ id $USER  # Get your UID/GID
 
 **Client Cannot Connect**
 ```bash
-curl http://localhost:8010/healthz
-curl http://localhost:8010/mcp
+curl http://localhost:8045/healthz
+curl http://localhost:8045/mcp
 ```
 
 **CORS Errors**
