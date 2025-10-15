@@ -3,7 +3,7 @@
 
 <div align="left">
 
-<img alt="codegraphcontext-mcp" src="https://img.shields.io/badge/CodeGraph-Context-00D9FF?style=for-the-badge&logo=neo4j&logoColor=white" width="400">
+<img alt="codegraphcontext-mcp" src="https://img.shields.io/badge/CodeGraphContext-MCP-00D9FF?style=for-the-badge&logo=neo4j&logoColor=white" width="400">
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/mekayelanik/codegraphcontext-mcp.svg?style=flat-square)](https://hub.docker.com/r/mekayelanik/codegraphcontext-mcp)
 [![Docker Stars](https://img.shields.io/docker/stars/mekayelanik/codegraphcontext-mcp.svg?style=flat-square)](https://hub.docker.com/r/mekayelanik/codegraphcontext-mcp)
