@@ -633,7 +633,7 @@ the "copyright" line and a pointer to where the full notice is found.
 
     This is a container image for th distributed deployment of CodeGraphContext, Original project in https://github.com/Shashankss1205/CodeGraphContext which holds MIT license.
 
-    * [Context7 Docker Image (Gitub: https://github.com/MekayelAnik/codegraphcontext-mcp-docker; Docker Hub: https://hub.docker.com/r/mekayelanik/codegraphcontext-mcp)]
+    * [CodeGraphContext MCP Docker Image (Gitub: https://github.com/MekayelAnik/codegraphcontext-mcp-docker; Docker Hub: https://hub.docker.com/r/mekayelanik/codegraphcontext-mcp)]
     * 
     * Copyright (C) [2025] [Mohammad Mekayel Anik (mekayel.anik@gmail.com)]
 
