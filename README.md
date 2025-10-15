@@ -7,7 +7,7 @@
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/mekayelanik/codegraphcontext-mcp.svg?style=flat-square)](https://hub.docker.com/r/mekayelanik/codegraphcontext-mcp)
 [![Docker Stars](https://img.shields.io/docker/stars/mekayelanik/codegraphcontext-mcp.svg?style=flat-square)](https://hub.docker.com/r/mekayelanik/codegraphcontext-mcp)
-[![Docker Image License](https://img.shields.io/badge/license-GPL-blue.svg?style=flat-square)](https://github.com/MekayelAnik/codegraphcontext-mcp-docker/refs/heads/main/LICENSE)
+[![Docker Image License](https://img.shields.io/badge/license-GPL-blue.svg?style=flat-square)](https://raw.githubusercontent.com/MekayelAnik/codegraphcontext-mcp-docker/refs/heads/main/LICENSE)
 
 **[Docker Image GitHub Repository](https://github.com/MekayelAnik/codegraphcontext-mcp-docker)** • **[Docker Hub](https://hub.docker.com/r/mekayelanik/codegraphcontext-mcp)** • **[Documentation](https://shashankss1205.github.io/CodeGraphContext/)** • **[Main Project GitHub Repository](https://github.com/Shashankss1205/CodeGraphContext)** • **[PyPI Package](https://pypi.org/project/codegraphcontext/)**
 
@@ -589,7 +589,7 @@ docker stop cgc-mcp && docker rm cgc-mcp
 
 ## License
 
-Docker Image GPL License - See [LICENSE](https://github.com/MekayelAnik/codegraphcontext-mcp-docker/refs/heads/main/LICENSE)
+Docker Image GPL License - See [LICENSE](https://raw.githubusercontent.com/MekayelAnik/codegraphcontext-mcp-docker/refs/heads/main/LICENSE)
 
 Main Project MIT License - See [LICENSE](https://raw.githubusercontent.com/Shashankss1205/CodeGraphContext/refs/heads/main/LICENSE)
 
