@@ -3,7 +3,7 @@
 
 <div align="left">
 
-<img alt="codegraphcontext-mcp" src="https://img.shields.io/badge/CodeGraphContext-MCP-00D9FF?style=for-the-badge&logo=neo4j&logoColor=white" width="400">
+<img alt="codegraphcontext-mcp" src="https://img.shields.io/badge/CodeGraph-Context-00D9FF?style=for-the-badge&logo=neo4j&logoColor=white" width="400">
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/mekayelanik/codegraphcontext-mcp.svg?style=flat-square)](https://hub.docker.com/r/mekayelanik/codegraphcontext-mcp)
 [![Docker Stars](https://img.shields.io/docker/stars/mekayelanik/codegraphcontext-mcp.svg?style=flat-square)](https://hub.docker.com/r/mekayelanik/codegraphcontext-mcp)
@@ -23,6 +23,7 @@
 - [MCP Client Setup](#mcp-client-setup)
 - [Available Tools](#available-tools)
 - [Neo4j Setup](#neo4j-setup)
+- [Remote Deployment](#remote-deployment)
 - [Troubleshooting](#troubleshooting)
 - [Resources & Support](#resources--support)
 
@@ -34,14 +35,15 @@ CodeGraphContext MCP Server transforms your codebase into a queryable knowledge 
 
 ### Key Features
 
-✨ **Intelligent Code Indexing** - Automatically analyzes and graphs code structure  
+✨ **Intelligent Code Indexing** - Automatically analyzes and graphs code structure with background job processing  
 🔍 **Relationship Analysis** - Query callers, callees, class hierarchies, and dependencies  
 📊 **Live Updates** - Real-time file watching with automatic graph synchronization  
 🎯 **Dead Code Detection** - Identify unused functions and quality issues  
 📈 **Complexity Analysis** - Calculate cyclomatic complexity and find hotspots  
 🔗 **Call Chain Tracing** - Track execution flows across hundreds of files  
 🚀 **Multiple Protocols** - HTTP, SSE, and WebSocket support  
-🗄️ **Graph Database Powered** - Neo4j backend for lightning-fast queries
+🗄️ **Graph Database Powered** - Neo4j backend for lightning-fast queries  
+⚡ **Async Processing** - Background jobs for large codebases
 
 ### Supported Architectures
 
@@ -55,7 +57,7 @@ CodeGraphContext MCP Server transforms your codebase into a queryable knowledge 
 | Tag | Stability | Use Case |
 |:----|:---------:|:---------|
 | `stable` | ⭐⭐⭐ | **Production (recommended)** |
-| `latest` | ⭐⭐⭐ | Latest features |
+| `latest` | ⭐⭐⭐ | Latest stable features |
 | `0.1.x` | ⭐⭐⭐ | Version pinning |
 | `beta` | ⚠️ | Testing only |
 
@@ -86,7 +88,7 @@ services:
       - neo4j_data:/data
 
   codegraphcontext-mcp:
-    image: mekayelanik/codegraphcontext-mcp:latest
+    image: mekayelanik/codegraphcontext-mcp:stable
     container_name: cgc-mcp
     restart: unless-stopped
     ports:
@@ -101,6 +103,8 @@ services:
       - TZ=Asia/Dhaka
       - PROTOCOL=SHTTP
       - CORS=*
+    volumes:
+      - /path/to/your/projects:/workspace:ro
     depends_on:
       - neo4j
 
@@ -122,6 +126,7 @@ docker run -d \
   --name=cgc-mcp \
   --restart=unless-stopped \
   -p 8045:8045 \
+  -v /path/to/your/projects:/workspace:ro \
   -e PORT=8045 \
   -e NEO4J_URI=bolt://your-neo4j:7687 \
   -e NEO4J_USERNAME=neo4j \
@@ -129,7 +134,7 @@ docker run -d \
   -e PUID=1000 \
   -e PGID=1000 \
   -e PROTOCOL=SHTTP \
-  mekayelanik/codegraphcontext-mcp:latest
+  mekayelanik/codegraphcontext-mcp:stable
 ```
 
 ### Access Endpoints
@@ -162,6 +167,19 @@ docker run -d \
 | `CORS` | _(none)_ | Cross-Origin config (`*`, domains, regex) |
 | `API_KEY` | _(none)_ | Optional authentication |
 | `DEBUG_MODE` | `false` | Enable debug mode |
+
+### Volume Mounting
+
+Mount your project directories to make them accessible to the MCP server:
+
+```yaml
+volumes:
+  - /home/user/projects:/workspace:ro        # Read-only recommended
+  - /var/www/apps:/apps:ro
+  - /opt/repositories:/repos:ro
+```
+
+Then reference paths as `/workspace/project-name`, `/apps/app-name`, etc.
 
 ### Neo4j Configuration Examples
 
@@ -230,12 +248,20 @@ Add to `.vscode/settings.json`:
       "transport": "http",
       "autoApprove": [
         "add_code_to_graph",
+        "check_job_status",
+        "list_jobs",
         "find_code",
         "analyze_code_relationships",
         "watch_directory",
-        "find_dead_code",
         "execute_cypher_query",
-        "calculate_cyclomatic_complexity"
+        "add_package_to_graph",
+        "find_dead_code",
+        "calculate_cyclomatic_complexity",
+        "find_most_complex_functions",
+        "list_indexed_repositories",
+        "delete_repository",
+        "list_watched_paths",
+        "unwatch_directory"
       ]
     }
   }
@@ -339,25 +365,32 @@ export GITHUB_COPILOT_MCP_SERVERS='{"codegraphcontext":{"transport":"http","url"
 ## Available Tools
 
 ### 📦 add_code_to_graph
-Index code from a local directory.
+Performs a one-time scan of a local folder to add its code to the graph. Ideal for indexing libraries, dependencies, or projects not being actively modified. Returns a job ID for background processing.
 
 **Parameters:** `directory` (required), `repository_name` (optional)
 
-**Example:** "Index the code in /home/user/my-project"
+**Example:** "Index the code in /workspace/my-project"
 
 ---
 
-### 📚 add_package_to_graph
-Index a Python package or module.
+### ⏳ check_job_status
+Check the status and progress of a background job.
 
-**Parameters:** `package_name` (required)
+**Parameters:** `job_id` (required)
 
-**Example:** "Add the requests package to the graph"
+**Example:** "Check status of job abc123"
+
+---
+
+### 📋 list_jobs
+List all background jobs and their current status.
+
+**Example:** "Show all jobs"
 
 ---
 
 ### 🔍 find_code
-Search for functions, classes, or code elements.
+Find relevant code snippets related to a keyword (e.g., function name, class name, or content).
 
 **Parameters:** `name` (required), `type` (optional)
 
@@ -366,7 +399,7 @@ Search for functions, classes, or code elements.
 ---
 
 ### 🔗 analyze_code_relationships
-Analyze relationships between code elements.
+Analyze code relationships like 'who calls this function' or 'class hierarchy'. Supported query types include: find_callers, find_callees, find_all_callers, find_all_callees, find_importers, who_modifies, class_hierarchy, overrides, dead_code, call_chain, module_deps, variable_scope, find_complexity, find_functions_by_argument, find_functions_by_decorator.
 
 **Parameters:** `name` (required), `relationship_type` (optional), `max_depth` (optional)
 
@@ -375,25 +408,21 @@ Analyze relationships between code elements.
 ---
 
 ### 👁️ watch_directory
-Monitor directory for changes and auto-update graph.
+Performs an initial scan of a directory and then continuously monitors it for changes, automatically keeping the graph up-to-date. Ideal for projects under active development. Returns a job ID for the initial scan.
 
 **Parameters:** `directory` (required), `repository_name` (optional)
 
-**Example:** "Watch /home/user/project for changes"
-
----
-
-### 🔍 find_dead_code
-Identify unused functions and dead code.
-
-**Parameters:** `repository_name` (optional)
-
-**Example:** "Find dead code in my-project"
+**Example:** "Watch /workspace/active-project for changes"
 
 ---
 
 ### 💾 execute_cypher_query
-Execute custom Cypher queries against Neo4j.
+Fallback tool to run a direct, read-only Cypher query against the code graph. Use this for complex questions not covered by other tools. The graph contains nodes representing code structures and relationships between them.
+
+**Schema Overview:**
+- **Nodes:** Repository, File, Module, Class, Function
+- **Properties:** name, path, cyclomatic_complexity (on Function nodes), code
+- **Relationships:** CONTAINS, CALLS, IMPORTS, INHERITS
 
 **Parameters:** `query` (required), `parameters` (optional)
 
@@ -401,8 +430,26 @@ Execute custom Cypher queries against Neo4j.
 
 ---
 
+### 📚 add_package_to_graph
+Add a package to the graph by discovering its location. Supports multiple languages. Returns immediately with a job ID.
+
+**Parameters:** `package_name` (required)
+
+**Example:** "Add the requests package to the graph"
+
+---
+
+### 🔍 find_dead_code
+Find potentially unused functions (dead code) across the entire indexed codebase, optionally excluding functions with specific decorators.
+
+**Parameters:** `repository_name` (optional), `exclude_decorators` (optional)
+
+**Example:** "Find dead code in my-project"
+
+---
+
 ### 📊 calculate_cyclomatic_complexity
-Calculate function complexity.
+Calculate the cyclomatic complexity of a specific function to measure its complexity.
 
 **Parameters:** `function_name` (required), `file_path` (optional)
 
@@ -411,7 +458,7 @@ Calculate function complexity.
 ---
 
 ### 🎯 find_most_complex_functions
-Identify most complex functions.
+Find the most complex functions in the codebase based on cyclomatic complexity.
 
 **Parameters:** `limit` (optional), `repository_name` (optional)
 
@@ -427,36 +474,36 @@ List all indexed repositories.
 ---
 
 ### 🗑️ delete_repository
-Remove repository from graph.
+Delete an indexed repository from the graph.
 
 **Parameters:** `repository_path` (required)
 
-**Example:** "Delete repository at /home/user/old-project"
+**Example:** "Delete repository at /workspace/old-project"
 
 ---
 
 ### 📈 visualize_graph_query
-Generate visualization data.
+Generates a URL to visualize the results of a Cypher query in the Neo4j Browser. The user can open this URL in their web browser to see the graph visualization.
 
 **Parameters:** `query` (required), `parameters` (optional)
 
-**Example:** "Visualize: MATCH (n)-[r]->(m) RETURN n, r, m"
+**Example:** "Visualize: MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 50"
 
 ---
 
-### 📍 list_watched_paths
-List monitored directories.
+### 📁 list_watched_paths
+Lists all directories currently being watched for live file changes.
 
 **Example:** "Show watched directories"
 
 ---
 
 ### 🛑 unwatch_directory
-Stop watching a directory.
+Stops watching a directory for live file changes.
 
 **Parameters:** `directory` (required)
 
-**Example:** "Stop watching /home/user/project"
+**Example:** "Stop watching /workspace/project"
 
 ---
 
@@ -495,6 +542,62 @@ services:
 
 ---
 
+## Remote Deployment
+
+### Deployment Considerations
+
+The MCP server can be deployed remotely and accessed via URL from your IDE clients. However, understand these requirements:
+
+**Filesystem Access Required:**
+- `add_code_to_graph` and `watch_directory` need direct access to code directories
+- Mount your project directories into the container via Docker volumes
+- Alternative: Use `add_package_to_graph` for public packages
+
+**Query Operations Work Remotely:**
+- All analysis tools (`find_code`, `analyze_code_relationships`, etc.) work perfectly over remote connections
+- Once code is indexed in Neo4j, location doesn't matter
+
+### Remote Setup Example
+
+**Server (where code exists):**
+```yaml
+services:
+  codegraphcontext-mcp:
+    image: mekayelanik/codegraphcontext-mcp:stable
+    ports:
+      - "8045:8045"
+    volumes:
+      - /var/repositories:/repos:ro
+      - /home/user/projects:/projects:ro
+    environment:
+      - NEO4J_URI=bolt://neo4j-server:7687
+      - NEO4J_USERNAME=neo4j
+      - NEO4J_PASSWORD=password
+      - CORS=https://your-domain.com
+```
+
+**Client (IDE configuration):**
+```json
+{
+  "mcpServers": {
+    "codegraphcontext": {
+      "transport": "http",
+      "url": "http://your-server-ip:8045/mcp"
+    }
+  }
+}
+```
+
+### Security Best Practices
+
+- Use HTTPS reverse proxy (nginx/Caddy) for production
+- Configure specific CORS domains, never use `*` in production
+- Consider VPN/SSH tunneling for sensitive codebases
+- Enable `API_KEY` authentication for additional security
+- Use read-only volume mounts (`:ro`) when possible
+
+---
+
 ## Troubleshooting
 
 ### Pre-Flight Checklist
@@ -502,8 +605,9 @@ services:
 - ✅ Docker 23.0+
 - ✅ Neo4j running and accessible
 - ✅ Port 8045 available
-- ✅ Latest image
+- ✅ Latest stable image
 - ✅ Correct configuration
+- ✅ Project directories mounted
 
 ### Common Issues
 
@@ -529,6 +633,15 @@ id $USER  # Get your UID/GID
 # Update PUID and PGID in config
 ```
 
+**Cannot Access Mounted Directories**
+```bash
+# Verify mount inside container
+docker exec cgc-mcp ls -la /workspace
+
+# Check permissions
+docker exec cgc-mcp stat /workspace/your-project
+```
+
 **Client Cannot Connect**
 ```bash
 curl http://localhost:8045/healthz
@@ -544,6 +657,15 @@ environment:
 # Production
 environment:
   - CORS=https://yourdomain.com
+```
+
+**Job Processing Issues**
+```bash
+# Check job status via tool
+# "List all jobs" or "Check status of job <job_id>"
+
+# View logs
+docker logs cgc-mcp --tail 100 -f
 ```
 
 ---
