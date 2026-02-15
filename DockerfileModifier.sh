@@ -1,134 +1,107 @@
 #!/bin/bash
 set -ex
-# Set variables first
+
+# 1. Variables and Version Check
 REPO_NAME='codegraphcontext-mcp'
-BASE_IMAGE=$(cat ./build_data/base-image 2>/dev/null || echo "node:alpine")
-CGC_VERSION=$(cat ./build_data/version 2>/dev/null || exit 1)
-CGC_PKG="codegraphcontext==${CGC_VERSION}"
-SUPERGATEWAY_PKG='supergateway@latest'
-DOCKERFILE_NAME="Dockerfile.$REPO_NAME"
+BASE_IMAGE=$(cat ./resources/build_data/base-image 2>/dev/null || echo "python:3.14-slim")
 
-# Create a temporary file safely
-TEMP_FILE=$(mktemp "${DOCKERFILE_NAME}.XXXXXX") || {
-    echo "Error creating temporary file" >&2
-    exit 1
-}
-
-# Check if this is a publication build
-if [ -e ./build_data/publication ]; then
-    # For publication builds, create a minimal Dockerfile that just tags the existing image
-    {
-        echo "ARG BASE_IMAGE=$BASE_IMAGE"
-        echo "ARG CGC_VERSION=$CGC_VERSION"
-        echo "FROM $BASE_IMAGE"
-    } > "$TEMP_FILE"
+if [ -f ./resources/build_data/cgc_version ]; then
+    CGC_VERSION=$(cat ./resources/build_data/cgc_version)
+    echo "Building Dockerfile for $CGC_VERSION"
 else
-    # Write the Dockerfile content to the temporary file
-    cat > "$TEMP_FILE" << EOF
-ARG BASE_IMAGE=$BASE_IMAGE
-ARG CGC_VERSION=$CGC_VERSION
-FROM \$BASE_IMAGE AS build
+    echo "ERROR: build_data/cgc_version not found!" >&2
+    exit 1
+fi
 
-# Author info:
+if [ -f ./resources/build_data/nvm_version ]; then
+    NVM_VERSION=$(cat ./resources/build_data/nvm_version)
+    echo "Building image with $NVM_VERSION"
+else
+    echo "ERROR: build_data/nvm_version not found!" >&2
+    exit 1
+fi
+
+# 4. Generate the Dockerfile
+cat > "Dockerfile.$REPO_NAME" << EOF
+FROM ${BASE_IMAGE}
+
+# Author info
 LABEL org.opencontainers.image.authors="MOHAMMAD MEKAYEL ANIK <mekayel.anik@gmail.com>"
 LABEL org.opencontainers.image.description="CodeGraphContext MCP Server with Supergateway"
-LABEL org.opencontainers.image.project="https://github.com/Shashankss1205/CodeGraphContext"
-LABEL org.opencontainers.image.source="https://github.com/MekayelAnik/codegraphcontext-mcp-docker"
 
-# Copy the entrypoint script into the container and make it executable
+# Silence debconf and setup runtime tools
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Copy scripts from your OLD script's logic
 COPY ./resources/ /usr/local/bin/
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/banner.sh \\
-    && chmod +r /usr/local/bin/build-timestamp.txt
+RUN mkdir -p /etc/haproxy/ && mv -vf /usr/local/bin/haproxy.cfg.template /etc/haproxy/haproxy.cfg.template
 
-# Install system dependencies for Python and CodeGraphContext
-RUN echo "https://dl-cdn.alpinelinux.org/alpine/edge/main" > /etc/apk/repositories && \\
-    echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories && \\
-    apk --update-cache --no-cache add \\
-        py3-pip \\
-        py3-wheel \\
-        python3 \\
-        bash \\
-        shadow \\
-        su-exec \\
-        tzdata \\
-        py3-setuptools && \\
-    rm -rf /var/cache/apk/*
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/banner.sh /usr/local/bin/node.sh /usr/local/bin/pypi.sh \\
+    && chmod +r /usr/local/bin/build-timestamp.txt \\
+    && ln -s /usr/sbin/gosu /usr/local/bin/su-exec
 
-# Create a virtual environment for Python packages
-RUN python3 -m venv /opt/venv
+RUN apt-get update && apt-get install -y --no-install-recommends curl gosu iproute2 netcat-openbsd libatomic1 haproxy dos2unix \\
+    && dos2unix /usr/local/bin/*.sh \\
+    && apt-get purge dos2unix -y \\
+    && find /usr/local/bin/ -name "entrypoint.sh" \\
+    && ln -sf /usr/sbin/gosu /usr/local/bin/su-exec \\
+    && rm -rf /var/lib/apt/lists/*
 
-# Set PATH to include virtual environment (must be before verification)
+# 1. Create user and directories
+RUN groupadd -g 1000 node && \
+    useradd -u 1000 -g node -s /bin/bash -m node && \
+    mkdir -p /app /opt/venv && \
+    chown -R node:node /app /opt/venv /home/node
+
+# 2. Switch to the non-root user
+USER node
+
+# Install Node.js via NVM
+RUN /usr/local/bin/node.sh
+
+# Make NVM available in non-interactive shells by adding to .bashrc
+# and create direct symlinks for node, npm, npx in a location that's in PATH
+RUN NVM_DIR=/home/node/.nvm && \
+    echo "export NVM_DIR=\$NVM_DIR" >> /home/node/.bashrc && \
+    echo '[ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"' >> /home/node/.bashrc && \
+    . \$NVM_DIR/nvm.sh && \
+    NODE_BIN_DIR=\$NVM_DIR/versions/node/\$(nvm version default)/bin && \
+    mkdir -p /home/node/bin && \
+    ln -sf \$NODE_BIN_DIR/node /home/node/bin/node && \
+    ln -sf \$NODE_BIN_DIR/npm /home/node/bin/npm && \
+    ln -sf \$NODE_BIN_DIR/npx /home/node/bin/npx
+
+# Add the bin directory to PATH
+ENV PATH="/home/node/bin:$PATH"
+
+# Setup Virtual Environment
+RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:\$PATH"
 
-# Upgrade pip, setuptools, and wheel in virtual environment
-# Upgrade pip and install Python packages using a multi-stage approach for cleanliness.
-# Build dependencies are installed and removed in the same layer to keep the image small.
-RUN apk add --no-cache --virtual .build-deps \\
-        gcc \\
-        g++ \\
-        make \\
-        musl-dev \\
-        python3-dev \\
-        libffi-dev \\
-        openssl-dev \\
-        cargo \\
-        rust && \\
-    pip install --no-cache-dir --upgrade pip setuptools wheel && \\
-    echo "Installing CodeGraphContext version: $CGC_PKG" && \\
-    pip install --no-cache-dir \\
-        "$CGC_PKG" \\
-        neo4j>=5.15.0 \\
-        watchdog>=3.0.0 \\
-        requests>=2.31.0 \\
-        stdlibs>=2023.11.18 \\
-        typer>=0.9.0 \\
-        rich>=13.7.0 \\
-        inquirerpy>=0.3.4 \\
-        python-dotenv>=1.0.0 \\
-        tree-sitter==0.20.4 \\
-        tree-sitter-languages==1.10.2 && \\
-    cgc --help || { echo "ERROR: cgc command not found after installation!" >&2; exit 1; } && \\
-    apk del .build-deps && \\
-    rm -rf /tmp/* /root/.cache
+RUN /usr/local/bin/pypi.sh
 
-# Install Node.js packages (Supergateway)
-RUN npm install -g $SUPERGATEWAY_PKG --loglevel verbose && \\
-    npm cache clean --force
+USER root
 
-# Use an ARG for the default port
-ARG PORT=8045
+# User Configuration
+RUN apt-get purge curl -y \\
+    && apt-get autoremove -y \\
+    && rm -rf /var/lib/apt/lists/* /usr/share/man/* /usr/share/doc/* /root/.npm/_logs /usr/local/bin/node.sh /usr/local/bin/pypi.sh /usr/local/bin/build_data
 
-# Neo4j connection arguments
-ARG NEO4J_URI="bolt://localhost:7687"
-ARG NEO4J_USERNAME="neo4j"
-ARG NEO4J_PASSWORD=""
+# Final Environment Setup
+ENV PYTHONUNBUFFERED=1 \\
+    PYTHONFAULTHANDLER=1 \\
+    PYTHONDONTWRITEBYTECODE=1 \\
+    PATH="/opt/venv/bin:\$PATH" \\
+    VIRTUAL_ENV=/opt/venv \\
+    PORT=8045 \\
+    NEO4J_URI="bolt://localhost:7687" \\
+    NEO4J_USERNAME="neo4j"
 
-# Optional API key for gateway authentication
-ARG API_KEY=""
-
-# Set ENV variables from ARGs for runtime
-ENV PORT=\${PORT}
-ENV NEO4J_URI=\${NEO4J_URI}
-ENV NEO4J_USERNAME=\${NEO4J_USERNAME}
-ENV NEO4J_PASSWORD=\${NEO4J_PASSWORD}
-ENV API_KEY=\${API_KEY}
-ENV PATH="/opt/venv/bin:\$PATH"
-
-# Health check using nc (netcat) to check if the port is open
+# Health check logic - check HAProxy frontend port
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \\
-    CMD nc -z localhost \${PORT:-8045} || exit 1
+    CMD nc -z localhost \$PORT || exit 1
 
-# Set the entrypoint
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-
 EOF
-fi
 
-# Atomically replace the target file with the temporary file
-if mv -f "$TEMP_FILE" "$DOCKERFILE_NAME"; then
-    echo "Dockerfile for $REPO_NAME created successfully."
-else
-    echo "Error: Failed to create Dockerfile for $REPO_NAME" >&2
-    rm -f "$TEMP_FILE"
-    exit 1
-fi
+echo "Successfully generated Dockerfile.$REPO_NAME"
