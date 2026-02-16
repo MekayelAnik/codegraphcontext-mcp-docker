@@ -3,24 +3,29 @@ set -ex
 
 # 1. Variables and Version Check
 REPO_NAME='codegraphcontext-mcp'
-BASE_IMAGE=$(cat ./resources/build_data/base-image 2>/dev/null || echo "python:3.14-slim")
+BASE_IMAGE=$(cat ./resources/build_data/base-image 2>/dev/null)
 
-if [ -f ./resources/build_data/cgc_version ]; then
-    CGC_VERSION=$(cat ./resources/build_data/cgc_version)
-    echo "Building Dockerfile for $CGC_VERSION"
+# Create Dockerfile directly
+if [ -e ./resources/build_data/publication ]; then
+    # For publication builds
+    echo "FROM ${BASE_IMAGE}" > "Dockerfile.$REPO_NAME"
+    echo "# Publication tag" >> "Dockerfile.$REPO_NAME"
 else
-    echo "ERROR: build_data/cgc_version not found!" >&2
-    exit 1
-fi
+    if [ -f ./resources/build_data/cgc_version ]; then
+        CGC_VERSION=$(cat ./resources/build_data/cgc_version)
+        echo "Building Dockerfile for $CGC_VERSION"
+    else
+        echo "ERROR: build_data/cgc_version not found!" >&2
+        exit 1
+    fi
 
-if [ -f ./resources/build_data/nvm_version ]; then
-    NVM_VERSION=$(cat ./resources/build_data/nvm_version)
-    echo "Building image with $NVM_VERSION"
-else
-    echo "ERROR: build_data/nvm_version not found!" >&2
-    exit 1
-fi
-
+    if [ -f ./resources/build_data/nvm_version ]; then
+        NVM_VERSION=$(cat ./resources/build_data/nvm_version)
+        echo "Building image with $NVM_VERSION"
+    else
+        echo "ERROR: build_data/nvm_version not found!" >&2
+        exit 1
+    fi
 # 4. Generate the Dockerfile
 cat > "Dockerfile.$REPO_NAME" << EOF
 FROM ${BASE_IMAGE}
@@ -38,12 +43,11 @@ RUN mkdir -p /etc/haproxy/ && mv -vf /usr/local/bin/haproxy.cfg.template /etc/ha
 
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/banner.sh /usr/local/bin/node.sh /usr/local/bin/pypi.sh \\
     && chmod +r /usr/local/bin/build-timestamp.txt \\
-    && ln -s /usr/sbin/gosu /usr/local/bin/su-exec
+    && ln -sf /usr/sbin/gosu /usr/local/bin/su-exec
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl gosu iproute2 netcat-openbsd libatomic1 haproxy dos2unix \\
     && dos2unix /usr/local/bin/*.sh \\
     && apt-get purge dos2unix -y \\
-    && find /usr/local/bin/ -name "entrypoint.sh" \\
     && ln -sf /usr/sbin/gosu /usr/local/bin/su-exec \\
     && rm -rf /var/lib/apt/lists/*
 
@@ -103,5 +107,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \\
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 EOF
+fi
 
 echo "Successfully generated Dockerfile.$REPO_NAME"

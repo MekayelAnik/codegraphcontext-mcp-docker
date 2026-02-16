@@ -29,6 +29,18 @@
 
 ---
 
+
+## Buy Me a Coffee
+
+**Your support encourages me to keep creating/supporting my open-source projects.** If you found value in this project, you can buy me a coffee to keep me inspired.
+
+<p align="center">
+<a href="https://07mekayel07.gumroad.com/coffee" target="_blank">
+<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="217" height="60">
+</a>
+</p>
+
+
 ## Overview
 
 CodeGraphContext MCP Server transforms your codebase into a queryable knowledge graph powered by Neo4j. It provides AI assistants with deep contextual understanding of code relationships, dependencies, and architecture patterns, integrating seamlessly with VS Code, Cursor, Windsurf, and Claude Desktop.
@@ -268,22 +280,11 @@ Add to `.vscode/settings.json`:
 }
 ```
 
-### Claude Desktop
+### Claude Desktop/Code
 
-**Config Locations:**
-- **Linux:** `~/.config/Claude/claude_desktop_config.json`
-- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "codegraphcontext": {
-      "transport": "http",
-      "url": "http://localhost:8045/mcp"
-    }
-  }
-}
+```
+### CLI
+claude mcp add-json github '{"type":"http","url":"http://localhost:8045/mcp","headers":{"Authorization":"Bearer <YOUR_API_KEY>"}}'
 ```
 
 ### Cursor
@@ -707,7 +708,24 @@ docker stop cgc-mcp && docker rm cgc-mcp
 # Run your docker run command again
 ```
 
----
+
+## Buy Me a Coffee
+
+**Your support encourages me to keep creating/supporting my open-source projects.** If you found value in this project, you can buy me a coffee to keep me inspired.
+
+<p align="center">
+<a href="https://07mekayel07.gumroad.com/coffee" target="_blank">
+<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="217" height="60">
+</a>
+</p>
+
+
+<p><strong> - Major Changes</strong></p>
+
+<ul>
+  <li><strong>0.1.35:</strong> - ⚠️⚠️⚠️ Added working APY_KEY authentication ⚠️⚠️⚠️</li>
+</ul>
+
 
 ## License
 

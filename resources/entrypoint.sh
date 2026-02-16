@@ -16,17 +16,6 @@ readonly DEFAULT_NEO4J_URI="bolt://localhost:7687"
 readonly DEFAULT_NEO4J_USERNAME="neo4j"
 readonly DEFAULT_NEO4J_PASSWORD=""
 
-# Detect OS type for package manager
-detect_os() {
-    if [ -f /etc/debian_version ]; then
-        echo "debian"
-    elif [ -f /etc/alpine-release ]; then
-        echo "alpine"
-    else
-        echo "unknown"
-    fi
-}
-
 # Function to trim whitespace using parameter expansion
 trim() {
     local var="$*"
@@ -71,9 +60,46 @@ generate_haproxy_config() {
         api_key_check="    # API Key authentication disabled - all requests allowed"
     fi
     
+    # Generate CORS check block
+    local cors_check=""
+    local cors_preflight_condition=""
+    local cors_response_condition=""
+    
+    if [[ "$HAPROXY_CORS_ENABLED" == "true" ]]; then
+        if [[ "$ALLOW_ALL_CORS" == "true" ]]; then
+            # Allow all origins
+            cors_check="    # CORS enabled - allowing ALL origins"
+            cors_preflight_condition="{ var(txn.origin) -m found }"
+            cors_response_condition="{ var(txn.origin) -m found }"
+        else
+            # Allow specific origins
+            cors_check="    # CORS enabled - allowing specific origins
+    acl cors_origin_allowed var(txn.origin) -m str -i"
+            
+            # Add each allowed origin
+            for origin in "${HAPROXY_CORS_ORIGINS[@]}"; do
+                cors_check+=" ${origin}"
+            done
+            cors_check+="
+    
+    # Deny requests from non-allowed origins
+    http-request deny deny_status 403 content-type \"application/json\" string '{\"error\":\"Forbidden\",\"message\":\"Origin not allowed\"}' if { var(txn.origin) -m found } !cors_origin_allowed"
+            
+            cors_preflight_condition="cors_origin_allowed"
+            cors_response_condition="cors_origin_allowed"
+        fi
+    else
+        # CORS disabled
+        cors_check="    # CORS disabled - no origin restrictions"
+        cors_preflight_condition="FALSE"
+        cors_response_condition="FALSE"
+    fi
+    
     # Replace placeholders in template
     sed -e "s|__PORT__|${PORT}|g" \
         -e "s|__INTERNAL_PORT__|${INTERNAL_PORT}|g" \
+        -e "s|__CORS_PREFLIGHT_CONDITION__|${cors_preflight_condition}|g" \
+        -e "s|__CORS_RESPONSE_CONDITION__|${cors_response_condition}|g" \
         "$template_file" > "$config_file.tmp"
     
     # Replace the API_KEY_CHECK placeholder with the generated block
@@ -84,9 +110,18 @@ generate_haproxy_config() {
             next
         }
         { print }
-    ' "$config_file.tmp" > "$config_file"
+    ' "$config_file.tmp" > "$config_file.tmp2"
     
-    rm -f "$config_file.tmp"
+    # Replace the CORS_CHECK placeholder with the generated block
+    awk -v replacement="$cors_check" '
+        /__CORS_CHECK__/ {
+            print replacement
+            next
+        }
+        { print }
+    ' "$config_file.tmp2" > "$config_file"
+    
+    rm -f "$config_file.tmp" "$config_file.tmp2"
     
     echo "HAProxy configuration generated at $config_file"
     return 0
@@ -160,6 +195,13 @@ handle_first_run() {
     fi
 
     [ "$uid_gid_changed" -eq 1 ] && echo "Updated UID/GID to PUID=$PUID, PGID=$PGID"
+    
+    # Generate HAProxy config on first run
+    if ! generate_haproxy_config; then
+        echo "Error: Failed to generate HAProxy configuration"
+        exit 1
+    fi
+    
     touch "$FIRST_RUN_FILE"
 }
 
@@ -221,13 +263,15 @@ validate_neo4j_config() {
     export NEO4J_PASSWORD
 }
 
-# Validate CORS patterns
+# Validate CORS patterns - HAProxy only
 validate_cors() {
-    CORS_ARGS=()
     ALLOW_ALL_CORS=false
+    HAPROXY_CORS_ENABLED=false
+    HAPROXY_CORS_ORIGINS=()
     local cors_value
 
     if [[ -n "${CORS}" ]]; then
+        HAPROXY_CORS_ENABLED=true
         IFS=',' read -ra CORS_VALUES <<< "$CORS"
         for cors_value in "${CORS_VALUES[@]}"; do
             cors_value=$(trim "$cors_value")
@@ -235,16 +279,26 @@ validate_cors() {
 
             if [[ "$cors_value" =~ ^(all|\*)$ ]]; then
                 ALLOW_ALL_CORS=true
-                CORS_ARGS=(--cors)
-                echo "Caution! CORS allowing all origins - security risk in production!"
+                HAPROXY_CORS_ORIGINS=("*")
+                echo "Caution! CORS allowing ALL origins - security risk in production!"
                 break
-            elif [[ "$cors_value" =~ ^/.*/$ ]] ||
-                 [[ "$cors_value" =~ ^https?:// ]] ||
-                 [[ "$cors_value" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$ ]] ||
-                 [[ "$cors_value" =~ ^https?://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$ ]] ||
-                 [[ "$cors_value" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(:[0-9]+)?$ ]]
-            then
-                CORS_ARGS+=(--cors "$cors_value")
+            elif [[ "$cors_value" =~ ^https?:// ]]; then
+                # Valid HTTP/HTTPS URL
+                HAPROXY_CORS_ORIGINS+=("$cors_value")
+            elif [[ "$cors_value" =~ ^https?://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$ ]]; then
+                # Valid HTTP/HTTPS with IP
+                HAPROXY_CORS_ORIGINS+=("$cors_value")
+            elif [[ "$cors_value" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(:[0-9]+)?$ ]]; then
+                # Domain without protocol - add both http and https variants for HAProxy
+                HAPROXY_CORS_ORIGINS+=("http://$cors_value")
+                HAPROXY_CORS_ORIGINS+=("https://$cors_value")
+            elif [[ "$cors_value" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$ ]]; then
+                # IP address without protocol - add both http and https variants for HAProxy
+                HAPROXY_CORS_ORIGINS+=("http://$cors_value")
+                HAPROXY_CORS_ORIGINS+=("https://$cors_value")
+            elif [[ "$cors_value" =~ ^/.*/$ ]]; then
+                # Regex pattern - not supported by HAProxy
+                echo "Warning: CORS regex pattern '$cors_value' not supported by HAProxy - skipping"
             else
                 echo "Warning: Invalid CORS pattern '$cors_value' - skipping"
             fi
@@ -261,6 +315,20 @@ start_haproxy() {
         echo "API_KEY authentication ENABLED via HAProxy"
     else
         echo "API_KEY authentication DISABLED - all requests will be forwarded"
+    fi
+    
+    # Display CORS status
+    if [[ "$HAPROXY_CORS_ENABLED" == "true" ]]; then
+        if [[ "$ALLOW_ALL_CORS" == "true" ]]; then
+            echo "CORS: Allowing ALL origins (wildcard)"
+        else
+            echo "CORS: Restricting to allowed origins:"
+            for origin in "${HAPROXY_CORS_ORIGINS[@]}"; do
+                echo "  - $origin"
+            done
+        fi
+    else
+        echo "CORS: Disabled (no origin restrictions)"
     fi
     
     # Validate HAProxy config
@@ -312,12 +380,6 @@ main() {
         handle_first_run
     fi
 
-    # Generate HAProxy config (with all variables now defined)
-    if ! generate_haproxy_config; then
-        echo "Error: Failed to generate HAProxy configuration"
-        exit 1
-    fi
-
     # Build MCP server command - cgc mcp start for CodeGraphContext
     MCP_SERVER_CMD="/opt/venv/bin/cgc mcp start"
 
@@ -327,42 +389,30 @@ main() {
 
     case "$PROTOCOL_UPPER" in
         "SHTTP"|"STREAMABLEHTTP")
-            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --streamableHttpPath /mcp --outputTransport streamableHttp "${CORS_ARGS[@]}" --healthEndpoint /healthz --stdio "$MCP_SERVER_CMD")
+            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --streamableHttpPath /mcp --outputTransport streamableHttp --healthEndpoint /healthz --stdio "$MCP_SERVER_CMD")
             PROTOCOL_DISPLAY="SHTTP/streamableHttp"
             ;;
         "SSE")
-            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --ssePath /sse --outputTransport sse "${CORS_ARGS[@]}" --healthEndpoint /healthz --stdio "$MCP_SERVER_CMD")
+            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --ssePath /sse --outputTransport sse --healthEndpoint /healthz --stdio "$MCP_SERVER_CMD")
             PROTOCOL_DISPLAY="SSE/Server-Sent Events"
             ;;
         "WS"|"WEBSOCKET")
-            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --messagePath /message --outputTransport ws "${CORS_ARGS[@]}" --healthEndpoint /healthz --stdio "$MCP_SERVER_CMD")
+            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --messagePath /message --outputTransport ws --healthEndpoint /healthz --stdio "$MCP_SERVER_CMD")
             PROTOCOL_DISPLAY="WS/WebSocket"
             ;;
         *)
             echo "Invalid PROTOCOL: '$PROTOCOL'. Using default: $DEFAULT_PROTOCOL"
-            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --streamableHttpPath /mcp --outputTransport streamableHttp "${CORS_ARGS[@]}" --healthEndpoint /healthz --stdio "$MCP_SERVER_CMD")
+            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --streamableHttpPath /mcp --outputTransport streamableHttp --healthEndpoint /healthz --stdio "$MCP_SERVER_CMD")
             PROTOCOL_DISPLAY="SHTTP/streamableHttp"
             ;;
     esac
 
-    # Detect OS type
-    OS_TYPE=$(detect_os)
 
     # Debug mode handling
     case "${DEBUG_MODE:-}" in
         [1YyTt]*|[Oo][Nn]|[Yy][Ee][Ss]|[Ee][Nn][Aa][Bb][Ll][Ee]*)
             echo "DEBUG MODE: Installing nano and pausing container"
-            case "$OS_TYPE" in
-                debian)
-                    apt-get update && apt-get install -y nano 2>/dev/null || echo "Warning: Failed to install nano"
-                    ;;
-                alpine)
-                    apk add --no-cache nano 2>/dev/null || echo "Warning: Failed to install nano"
-                    ;;
-                *)
-                    echo "Warning: Unknown OS type, cannot install nano"
-                    ;;
-            esac
+            apt-get update && apt-get install -y nano 2>/dev/null || echo "Warning: Failed to install nano"
             echo "Container paused for debugging. Exec into container to investigate."
             exec tail -f /dev/null
             ;;
