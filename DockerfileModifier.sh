@@ -47,7 +47,7 @@ RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/banner.sh /usr/local/bi
     && chmod +r /usr/local/bin/build-timestamp.txt \\
     && ln -sf /usr/sbin/gosu /usr/local/bin/su-exec
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl gosu iproute2 netcat-openbsd libatomic1 haproxy dos2unix openssl \\
+RUN apt-get update && apt-get install -y --no-install-recommends curl wget gosu iproute2 netcat-openbsd libatomic1 haproxy dos2unix openssl \\
     && dos2unix /usr/local/bin/*.sh \\
     && apt-get purge dos2unix -y \\
     && ln -sf /usr/sbin/gosu /usr/local/bin/su-exec \\
@@ -88,7 +88,7 @@ ENV PATH="/home/node/bin:$PATH"
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:\$PATH"
 
-RUN /usr/local/bin/pypi.sh
+RUN --mount=type=cache,target=/home/node/.cache/pip,uid=1000,gid=1000 /usr/local/bin/pypi.sh
 
 USER root
 
@@ -111,9 +111,9 @@ ENV PYTHONUNBUFFERED=1 \\
     NEO4J_URI="bolt://localhost:7687" \\
     NEO4J_USERNAME="neo4j"
 
-# Health check logic - check HAProxy frontend port
+# L7 health check: auto-detects HTTP/HTTPS via ENABLE_HTTPS env var
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \\
-    CMD nc -z localhost \$PORT || exit 1
+    CMD sh -c 'wget -q --spider --no-check-certificate \$([ "\$ENABLE_HTTPS" = "true" ] && echo https || echo http)://127.0.0.1:\${PORT:-8045}/healthz'
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 EOF
