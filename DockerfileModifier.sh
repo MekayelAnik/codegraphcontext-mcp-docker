@@ -1,8 +1,9 @@
 #!/bin/bash
-set -ex
+set -euxo pipefail
 
 # 1. Variables and Version Check
 REPO_NAME='codegraphcontext-mcp'
+HAPROXY_IMAGE=$(cat ./resources/build_data/haproxy-image 2>/dev/null || echo "haproxy:lts")
 BASE_IMAGE=$(cat ./resources/build_data/base-image 2>/dev/null)
 
 # Create Dockerfile directly
@@ -28,6 +29,7 @@ else
     fi
 # 4. Generate the Dockerfile
 cat > "Dockerfile.$REPO_NAME" << EOF
+FROM $HAPROXY_IMAGE AS haproxy-src
 FROM ${BASE_IMAGE}
 
 # Author info
@@ -50,6 +52,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl gosu iprou
     && apt-get purge dos2unix -y \\
     && ln -sf /usr/sbin/gosu /usr/local/bin/su-exec \\
     && rm -rf /var/lib/apt/lists/*
+
+# HAProxy with native QUIC/H3 support from official image
+COPY --from=haproxy-src /usr/local/sbin/haproxy /usr/sbin/haproxy
+RUN mkdir -p /usr/local/sbin && ln -sf /usr/sbin/haproxy /usr/local/sbin/haproxy
 
 # 1. Create user and directories
 RUN groupadd -g 1000 node && \
@@ -90,6 +96,10 @@ USER root
 RUN apt-get purge curl -y \\
     && apt-get autoremove -y \\
     && rm -rf /var/lib/apt/lists/* /usr/share/man/* /usr/share/doc/* /root/.npm/_logs /usr/local/bin/node.sh /usr/local/bin/pypi.sh /usr/local/bin/build_data
+
+# HAProxy with native QUIC/H3 support from official image
+COPY --from=haproxy-src /usr/local/sbin/haproxy /usr/sbin/haproxy
+RUN mkdir -p /usr/local/sbin && ln -sf /usr/sbin/haproxy /usr/local/sbin/haproxy
 
 # Final Environment Setup
 ENV PYTHONUNBUFFERED=1 \\

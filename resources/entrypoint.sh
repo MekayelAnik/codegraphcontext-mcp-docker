@@ -1,22 +1,23 @@
-#!/bin/bash
-set -e
-/usr/local/bin/banner.sh
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Default values
 readonly DEFAULT_PUID=1000
 readonly DEFAULT_PGID=1000
 readonly DEFAULT_PORT=8045
 readonly DEFAULT_INTERNAL_PORT=38046
 readonly DEFAULT_PROTOCOL="SHTTP"
-readonly SAFE_API_KEY_REGEX='^[A-Za-z0-9_:.@+= -]{5,128}$'
+readonly DEFAULT_TLS_DAYS=365
+readonly DEFAULT_TLS_CN="localhost"
+readonly DEFAULT_TLS_MIN_VERSION="TLSv1.3"
+readonly DEFAULT_HTTP_VERSION_MODE="auto"
+readonly SAFE_API_KEY_REGEX='^[[:graph:]]+$'
+readonly MIN_API_KEY_LEN=5
+readonly MAX_API_KEY_LEN=256
 readonly FIRST_RUN_FILE="/tmp/first_run_complete"
+readonly HAPROXY_SERVER_NAME="cgc"
+readonly HAPROXY_TEMPLATE="/etc/haproxy/haproxy.cfg.template"
+readonly HAPROXY_CONFIG="/tmp/haproxy.cfg"
 
-# Neo4j defaults
-readonly DEFAULT_NEO4J_URI="bolt://localhost:7687"
-readonly DEFAULT_NEO4J_USERNAME="neo4j"
-readonly DEFAULT_NEO4J_PASSWORD=""
-
-# Function to trim whitespace using parameter expansion
 trim() {
     local var="$*"
     var="${var#"${var%%[![:space:]]*}"}"
@@ -24,164 +25,176 @@ trim() {
     printf '%s' "$var"
 }
 
-# Validate positive integers
 is_positive_int() {
     [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -gt 0 ]
 }
 
-# Generate HAProxy configuration dynamically
-generate_haproxy_config() {
-    local config_file="/tmp/haproxy.cfg"
-    local template_file="/etc/haproxy/haproxy.cfg.template"
-    
-    echo "Generating HAProxy configuration..."
-    
-    # Read template
-    if [[ ! -f "$template_file" ]]; then
-        echo "Error: HAProxy template not found at $template_file"
-        exit 1
-    fi
-    
-    # Generate API key check block
-    local api_key_check=""
-    if [[ -n "$API_KEY" ]]; then
-        # Escape API_KEY for use in HAProxy config (handle special chars)
-        local escaped_key="${API_KEY//\\/\\\\}"
-        escaped_key="${escaped_key//\"/\\\"}"
-        
-        api_key_check="    # API Key authentication enabled
-    acl auth_header_present var(txn.auth_header) -m found
-    acl auth_valid var(txn.auth_header) -m str \"Bearer ${escaped_key}\"
-    
-    # Deny requests without valid authentication
-    http-request deny deny_status 401 content-type \"application/json\" string '{\"error\":\"Unauthorized\",\"message\":\"Valid API key required\"}' if !auth_header_present
-    http-request deny deny_status 403 content-type \"application/json\" string '{\"error\":\"Forbidden\",\"message\":\"Invalid API key\"}' if auth_header_present !auth_valid"
-    else
-        api_key_check="    # API Key authentication disabled - all requests allowed"
-    fi
-    
-    # Generate CORS check block
-    local cors_check=""
-    local cors_preflight_condition=""
-    local cors_response_condition=""
-    
-    if [[ "$HAPROXY_CORS_ENABLED" == "true" ]]; then
-        if [[ "$ALLOW_ALL_CORS" == "true" ]]; then
-            # Allow all origins
-            cors_check="    # CORS enabled - allowing ALL origins"
-            cors_preflight_condition="{ var(txn.origin) -m found }"
-            cors_response_condition="{ var(txn.origin) -m found }"
-        else
-            # Allow specific origins
-            cors_check="    # CORS enabled - allowing specific origins
-    acl cors_origin_allowed var(txn.origin) -m str -i"
-            
-            # Add each allowed origin
-            for origin in "${HAPROXY_CORS_ORIGINS[@]}"; do
-                cors_check+=" ${origin}"
-            done
-            cors_check+="
-    
-    # Deny requests from non-allowed origins
-    http-request deny deny_status 403 content-type \"application/json\" string '{\"error\":\"Forbidden\",\"message\":\"Origin not allowed\"}' if { var(txn.origin) -m found } !cors_origin_allowed"
-            
-            cors_preflight_condition="cors_origin_allowed"
-            cors_response_condition="cors_origin_allowed"
-        fi
-    else
-        # CORS disabled
-        cors_check="    # CORS disabled - no origin restrictions"
-        cors_preflight_condition="FALSE"
-        cors_response_condition="FALSE"
-    fi
-    
-    # Replace placeholders in template
-    sed -e "s|__PORT__|${PORT}|g" \
-        -e "s|__INTERNAL_PORT__|${INTERNAL_PORT}|g" \
-        -e "s|__CORS_PREFLIGHT_CONDITION__|${cors_preflight_condition}|g" \
-        -e "s|__CORS_RESPONSE_CONDITION__|${cors_response_condition}|g" \
-        "$template_file" > "$config_file.tmp"
-    
-    # Replace the API_KEY_CHECK placeholder with the generated block
-    # Using awk to handle multi-line replacement
-    awk -v replacement="$api_key_check" '
-        /__API_KEY_CHECK__/ {
-            print replacement
-            next
-        }
-        { print }
-    ' "$config_file.tmp" > "$config_file.tmp2"
-    
-    # Replace the CORS_CHECK placeholder with the generated block
-    awk -v replacement="$cors_check" '
-        /__CORS_CHECK__/ {
-            print replacement
-            next
-        }
-        { print }
-    ' "$config_file.tmp2" > "$config_file"
-    
-    rm -f "$config_file.tmp" "$config_file.tmp2"
-    
-    echo "HAProxy configuration generated at $config_file"
-    return 0
+is_true() {
+    case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+        1|true|yes|on) return 0 ;;
+        *) return 1 ;;
+    esac
 }
 
-# First run handling
+validate_port() {
+    local name="$1"
+    local value="$2"
+    local fallback="$3"
+
+    if ! is_positive_int "$value" || [ "$value" -lt 1 ] || [ "$value" -gt 65535 ]; then
+        echo "Invalid ${name}='${value}', using default ${fallback}" >&2
+        printf '%s' "$fallback"
+        return
+    fi
+
+    printf '%s' "$value"
+}
+
+validate_tls_days() {
+    local value="$1"
+    local fallback="$2"
+
+    if ! is_positive_int "$value"; then
+        echo "Invalid TLS_DAYS='${value}', using default ${fallback}" >&2
+        printf '%s' "$fallback"
+        return
+    fi
+
+    printf '%s' "$value"
+}
+
+validate_tls_min_version() {
+    local value="$1"
+    local fallback="$2"
+
+    case "$value" in
+        TLSv1.2|TLSv1.3)
+            printf '%s' "$value"
+            ;;
+        *)
+            echo "Invalid TLS_MIN_VERSION='${value}', using default ${fallback}" >&2
+            printf '%s' "$fallback"
+            ;;
+    esac
+}
+
+normalize_http_version_mode() {
+    local raw="$1"
+    local mode
+
+    mode="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')"
+    mode="$(trim "$mode")"
+
+    case "$mode" in
+        auto|all|h1|h2|h3|h1+h2)
+            printf '%s' "$mode"
+            ;;
+        http/1.1|http1|http1.1)
+            printf 'h1'
+            ;;
+        http/2|http2)
+            printf 'h2'
+            ;;
+        http/3|http3)
+            printf 'h3'
+            ;;
+        *)
+            echo "Invalid HTTP_VERSION_MODE='${raw}', using default ${DEFAULT_HTTP_VERSION_MODE}" >&2
+            printf '%s' "$DEFAULT_HTTP_VERSION_MODE"
+            ;;
+    esac
+}
+
+validate_api_key() {
+    API_KEY="${API_KEY:-}"
+    API_KEY="$(trim "$API_KEY")"
+    local api_key_len=0
+
+    if [[ -z "$API_KEY" ]]; then
+        export API_KEY=""
+        return
+    fi
+
+    api_key_len="${#API_KEY}"
+    if (( api_key_len < MIN_API_KEY_LEN || api_key_len > MAX_API_KEY_LEN )); then
+        echo "Invalid API_KEY length (${api_key_len}). Expected ${MIN_API_KEY_LEN}-${MAX_API_KEY_LEN} characters." >&2
+        exit 1
+    fi
+
+    if [[ ! "$API_KEY" =~ $SAFE_API_KEY_REGEX ]]; then
+        echo "Invalid API_KEY format. Refusing to start with malformed API key (whitespace/control chars are not allowed)." >&2
+        exit 1
+    fi
+
+    export API_KEY
+}
+
+validate_cors() {
+    ALLOW_ALL_CORS=false
+    HAPROXY_CORS_ENABLED=false
+    HAPROXY_CORS_ORIGINS=()
+
+    local cors_value
+    if [[ -z "${CORS:-}" ]]; then
+        return
+    fi
+
+    HAPROXY_CORS_ENABLED=true
+    IFS=',' read -ra CORS_VALUES <<< "$CORS"
+    for cors_value in "${CORS_VALUES[@]}"; do
+        cors_value="$(trim "$cors_value")"
+        [[ -z "$cors_value" ]] && continue
+
+        if [[ "$cors_value" =~ ^(all|\*)$ ]]; then
+            ALLOW_ALL_CORS=true
+            HAPROXY_CORS_ORIGINS=("*")
+            break
+        elif [[ "$cors_value" =~ ^https?:// ]]; then
+            HAPROXY_CORS_ORIGINS+=("$cors_value")
+        elif [[ "$cors_value" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(:[0-9]+)?$ ]]; then
+            HAPROXY_CORS_ORIGINS+=("http://$cors_value" "https://$cors_value")
+        elif [[ "$cors_value" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$ ]]; then
+            HAPROXY_CORS_ORIGINS+=("http://$cors_value" "https://$cors_value")
+        else
+            echo "Warning: Invalid CORS pattern '$cors_value' - skipping"
+        fi
+    done
+}
+
 handle_first_run() {
     local uid_gid_changed=0
 
-    # Handle PUID/PGID logic
-    if [[ -z "$PUID" && -z "$PGID" ]]; then
+    if [[ -z "${PUID:-}" && -z "${PGID:-}" ]]; then
         PUID="$DEFAULT_PUID"
         PGID="$DEFAULT_PGID"
-        echo "PUID and PGID not set. Using defaults: PUID=$PUID, PGID=$PGID"
-    elif [[ -n "$PUID" && -z "$PGID" ]]; then
+    elif [[ -n "${PUID:-}" && -z "${PGID:-}" ]]; then
         if is_positive_int "$PUID"; then
             PGID="$PUID"
         else
-            echo "Invalid PUID: '$PUID'. Using default: $DEFAULT_PUID"
             PUID="$DEFAULT_PUID"
             PGID="$DEFAULT_PGID"
         fi
-    elif [[ -z "$PUID" && -n "$PGID" ]]; then
+    elif [[ -z "${PUID:-}" && -n "${PGID:-}" ]]; then
         if is_positive_int "$PGID"; then
             PUID="$PGID"
         else
-            echo "Invalid PGID: '$PGID'. Using default: $DEFAULT_PGID"
             PUID="$DEFAULT_PUID"
             PGID="$DEFAULT_PGID"
         fi
     else
         if ! is_positive_int "$PUID"; then
-            echo "Invalid PUID: '$PUID'. Using default: $DEFAULT_PUID"
             PUID="$DEFAULT_PUID"
         fi
-        
         if ! is_positive_int "$PGID"; then
-            echo "Invalid PGID: '$PGID'. Using default: $DEFAULT_PGID"
             PGID="$DEFAULT_PGID"
         fi
     fi
 
-    # Check existing UID/GID conflicts
-    local current_user current_group
-    current_user=$(id -un "$PUID" 2>/dev/null || true)
-    current_group=$(getent group "$PGID" | cut -d: -f1 2>/dev/null || true)
-
-    [[ -n "$current_user" && "$current_user" != "node" ]] &&
-        echo "Warning: UID $PUID already in use by $current_user - may cause permission issues"
-
-    [[ -n "$current_group" && "$current_group" != "node" ]] &&
-        echo "Warning: GID $PGID already in use by $current_group - may cause permission issues"
-
-    # Modify UID/GID if needed
     if [ "$(id -u node)" -ne "$PUID" ]; then
         if usermod -o -u "$PUID" node 2>/dev/null; then
             uid_gid_changed=1
         else
-            echo "Error: Failed to change UID to $PUID. Using existing UID $(id -u node)"
-            PUID=$(id -u node)
+            PUID="$(id -u node)"
         fi
     fi
 
@@ -189,301 +202,404 @@ handle_first_run() {
         if groupmod -o -g "$PGID" node 2>/dev/null; then
             uid_gid_changed=1
         else
-            echo "Error: Failed to change GID to $PGID. Using existing GID $(id -g node)"
-            PGID=$(id -g node)
+            PGID="$(id -g node)"
         fi
     fi
 
-    [ "$uid_gid_changed" -eq 1 ] && echo "Updated UID/GID to PUID=$PUID, PGID=$PGID"
-    
-    # Generate HAProxy config on first run
-    if ! generate_haproxy_config; then
-        echo "Error: Failed to generate HAProxy configuration"
-        exit 1
+    if [ "$uid_gid_changed" -eq 1 ]; then
+        echo "Updated UID/GID to PUID=${PUID}, PGID=${PGID}"
     fi
-    
+
     touch "$FIRST_RUN_FILE"
 }
 
-# Validate and set PORT
-validate_port() {
-    PORT=${PORT:-$DEFAULT_PORT}
-    
-    if ! is_positive_int "$PORT"; then
-        echo "Invalid PORT: '$PORT'. Using default: $DEFAULT_PORT"
-        PORT="$DEFAULT_PORT"
-    elif [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
-        echo "Invalid PORT: '$PORT'. Using default: $DEFAULT_PORT"
-        PORT="$DEFAULT_PORT"
+haproxy_supports_quic() {
+    # Build flag check (fast pre-filter)
+    # Note: avoid pipe + grep -q with pipefail (SIGPIPE can cause false negatives)
+    local vv_output
+    vv_output="$(haproxy -vv 2>/dev/null)" || true
+    if ! echo "$vv_output" | grep -Eiq 'USE_QUIC=1|[[:space:]]quic[[:space:]]: mode=HTTP'; then
+        return 1
     fi
-    
-    if [ "$PORT" -lt 1024 ] && [ "$(id -u)" -ne 0 ]; then
-        echo "Warning: Port $PORT is privileged and might require root"
+
+    # Runtime probe: verify QUIC bind actually works with the current SSL library
+    local probe_dir probe_cfg probe_pem output
+    probe_dir="$(mktemp -d)" || return 1
+    probe_cfg="${probe_dir}/probe.cfg"
+    probe_pem="${probe_dir}/probe.pem"
+
+    if ! openssl req -x509 -newkey rsa:2048 -keyout "${probe_dir}/probe.key" -out "${probe_dir}/probe.crt" \
+         -days 1 -nodes -subj "/CN=quic-probe" -batch 2>/dev/null; then
+        rm -rf "$probe_dir"
+        return 1
     fi
+    cat "${probe_dir}/probe.crt" "${probe_dir}/probe.key" > "$probe_pem"
+
+    printf 'global\n  log stderr format raw local0\ndefaults\n  mode http\n  timeout connect 5s\n  timeout client 5s\n  timeout server 5s\nfrontend quic_probe\n  bind quic4@*:65535 ssl crt %s alpn h3\n  default_backend quic_probe_be\nbackend quic_probe_be\n  server s1 127.0.0.1:1\n' \
+        "$probe_pem" > "$probe_cfg"
+
+    output="$(haproxy -c -f "$probe_cfg" 2>&1)" || true
+    rm -rf "$probe_dir"
+
+    if echo "$output" | grep -qi 'does not support the QUIC protocol'; then
+        return 1
+    fi
+    return 0
 }
 
-# Validate and set API_KEY (optional for CodeGraphContext)
-validate_api_key() {
-    if [[ -n "$API_KEY" ]]; then
-        if [[ "$API_KEY" =~ $SAFE_API_KEY_REGEX ]]; then
-            [[ "$API_KEY" =~ ^(password|secret|admin|token|key|test|demo)$ ]] &&
-                echo "Warning: API_KEY is using a common value - consider more complex key"
-            # Export for HAProxy to use
-            export API_KEY
-        else
-            echo "Invalid API_KEY. Must be 5-128 chars with safe symbols. Ignoring API_KEY."
-            unset API_KEY
+ensure_parent_dir() {
+    local target="$1"
+    mkdir -p "$(dirname "$target")"
+}
+
+prepare_tls_pem() {
+    local cert_path="$1"
+    local key_path="$2"
+    local pem_path="$3"
+    local tls_days="$4"
+    local tls_cn="$5"
+    local tls_san="$6"
+
+    if [[ -f "$pem_path" ]]; then
+        return
+    fi
+
+    ensure_parent_dir "$pem_path"
+
+    if [[ -f "$cert_path" && -f "$key_path" ]]; then
+        cat "$cert_path" "$key_path" > "$pem_path"
+        chmod 600 "$pem_path"
+        return
+    fi
+
+    echo "TLS enabled and no certificate material found; generating self-signed certificate (CN=${tls_cn})"
+    ensure_parent_dir "$cert_path"
+    ensure_parent_dir "$key_path"
+
+    openssl req -x509 -newkey rsa:2048 -nodes \
+      -keyout "$key_path" \
+      -out "$cert_path" \
+      -days "$tls_days" \
+      -subj "/CN=${tls_cn}" \
+      -addext "subjectAltName=${tls_san}" >/dev/null 2>&1
+
+    chmod 600 "$cert_path" "$key_path"
+    cat "$cert_path" "$key_path" > "$pem_path"
+    chmod 600 "$pem_path"
+}
+
+resolve_listener_protocols() {
+    local mode="$1"
+
+    if ! is_true "$ENABLE_HTTPS"; then
+        if [[ "$mode" != "h1" && "$mode" != "auto" ]]; then
+            echo "HTTP_VERSION_MODE='${mode}' requested without TLS; falling back to HTTP/1.1" >&2
         fi
-    else
-        unset API_KEY
+
+        BIND_PARAMS=""
+        QUIC_BIND_LINE="# HTTP/3 disabled"
+        EFFECTIVE_HTTP_VERSIONS="h1"
+        return
+    fi
+
+    local alpn="http/1.1"
+    local want_h3="false"
+
+    case "$mode" in
+        h1)
+            alpn="http/1.1"
+            ;;
+        h2)
+            alpn="h2"
+            ;;
+        h1+h2)
+            alpn="h2,http/1.1"
+            ;;
+        h3)
+            alpn="h2,http/1.1"
+            want_h3="true"
+            ;;
+        auto|all)
+            alpn="h2,http/1.1"
+            want_h3="true"
+            ;;
+    esac
+
+    BIND_PARAMS="ssl crt ${TLS_PEM_PATH} ssl-min-ver ${TLS_MIN_VERSION} alpn ${alpn}"
+    EFFECTIVE_HTTP_VERSIONS="${alpn}"
+    QUIC_BIND_LINE="# HTTP/3 disabled"
+
+    if [[ "$want_h3" == "true" ]]; then
+        if haproxy_supports_quic; then
+            QUIC_BIND_LINE="bind quic4@*:${PORT} ssl crt ${TLS_PEM_PATH} ssl-min-ver ${TLS_MIN_VERSION} alpn h3"
+            EFFECTIVE_HTTP_VERSIONS="${EFFECTIVE_HTTP_VERSIONS},h3"
+        else
+            echo "HTTP_VERSION_MODE='${mode}' requested h3, but QUIC is not available in this HAProxy build; continuing with ${alpn}" >&2
+        fi
     fi
 }
 
-# Validate Neo4j configuration
-validate_neo4j_config() {
-    NEO4J_URI=${NEO4J_URI:-$DEFAULT_NEO4J_URI}
-    NEO4J_USERNAME=${NEO4J_USERNAME:-$DEFAULT_NEO4J_USERNAME}
-    NEO4J_PASSWORD=${NEO4J_PASSWORD:-$DEFAULT_NEO4J_PASSWORD}
-
-    # Validate URI format
-    if [[ ! "$NEO4J_URI" =~ ^(bolt|neo4j|bolt\+s|neo4j\+s|bolt\+ssc|neo4j\+ssc)://.*$ ]]; then
-        echo "Warning: Invalid NEO4J_URI format. Using default: $DEFAULT_NEO4J_URI"
-        NEO4J_URI="$DEFAULT_NEO4J_URI"
-    fi
-
-    # Check if Neo4j credentials are provided
-    if [[ -z "$NEO4J_PASSWORD" ]]; then
-        echo "WARNING: NEO4J_PASSWORD not set. CodeGraphContext requires Neo4j database connection."
-        echo "Please provide NEO4J_URI, NEO4J_USERNAME, and NEO4J_PASSWORD environment variables."
-    fi
-
-    # Export Neo4j environment variables for cgc
-    export NEO4J_URI
-    export NEO4J_USERNAME
-    export NEO4J_PASSWORD
+escape_sed_replacement() {
+    local value="$1"
+    value="${value//\\/\\\\}"
+    value="${value//&/\\&}"
+    value="${value//|/\\|}"
+    printf '%s' "$value"
 }
 
-# Validate CORS patterns - HAProxy only
-validate_cors() {
-    ALLOW_ALL_CORS=false
-    HAPROXY_CORS_ENABLED=false
-    HAPROXY_CORS_ORIGINS=()
-    local cors_value
+escape_haproxy_regex() {
+    local value="$1"
+    local escaped=""
+    local i ch
 
-    if [[ -n "${CORS}" ]]; then
-        HAPROXY_CORS_ENABLED=true
-        IFS=',' read -ra CORS_VALUES <<< "$CORS"
-        for cors_value in "${CORS_VALUES[@]}"; do
-            cors_value=$(trim "$cors_value")
-            [[ -z "$cors_value" ]] && continue
+    for ((i = 0; i < ${#value}; i++)); do
+        ch="${value:i:1}"
+        if [[ "$ch" =~ [\\.^$\|?*+(){}\[\]] ]]; then
+            escaped+="\\$ch"
+        else
+            escaped+="$ch"
+        fi
+    done
 
-            if [[ "$cors_value" =~ ^(all|\*)$ ]]; then
-                ALLOW_ALL_CORS=true
-                HAPROXY_CORS_ORIGINS=("*")
-                echo "Caution! CORS allowing ALL origins - security risk in production!"
-                break
-            elif [[ "$cors_value" =~ ^https?:// ]]; then
-                # Valid HTTP/HTTPS URL
-                HAPROXY_CORS_ORIGINS+=("$cors_value")
-            elif [[ "$cors_value" =~ ^https?://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$ ]]; then
-                # Valid HTTP/HTTPS with IP
-                HAPROXY_CORS_ORIGINS+=("$cors_value")
-            elif [[ "$cors_value" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(:[0-9]+)?$ ]]; then
-                # Domain without protocol - add both http and https variants for HAProxy
-                HAPROXY_CORS_ORIGINS+=("http://$cors_value")
-                HAPROXY_CORS_ORIGINS+=("https://$cors_value")
-            elif [[ "$cors_value" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$ ]]; then
-                # IP address without protocol - add both http and https variants for HAProxy
-                HAPROXY_CORS_ORIGINS+=("http://$cors_value")
-                HAPROXY_CORS_ORIGINS+=("https://$cors_value")
-            elif [[ "$cors_value" =~ ^/.*/$ ]]; then
-                # Regex pattern - not supported by HAProxy
-                echo "Warning: CORS regex pattern '$cors_value' not supported by HAProxy - skipping"
-            else
-                echo "Warning: Invalid CORS pattern '$cors_value' - skipping"
-            fi
-        done
-    fi
+    printf '%s' "$escaped"
 }
 
-# Start HAProxy with dynamically generated configuration
-start_haproxy() {
-    echo "Starting HAProxy on port $PORT..."
-    
-    # Display authentication status
+generate_haproxy_config() {
+    if [[ ! -f "$HAPROXY_TEMPLATE" ]]; then
+        echo "Error: HAProxy template missing at ${HAPROXY_TEMPLATE}" >&2
+        exit 1
+    fi
+
+    local api_key_check
     if [[ -n "$API_KEY" ]]; then
-        echo "API_KEY authentication ENABLED via HAProxy"
+        local escaped_key_sed
+        escaped_key_sed="$(escape_sed_replacement "$API_KEY")"
+        api_key_check="    # API Key authentication enabled (localhost /healthz excluded)
+    acl auth_header_present var(txn.auth_header) -m found
+
+    # Extract token: strip 'Bearer ' prefix (case-insensitive) into txn.api_token
+    http-request set-var(txn.api_token) var(txn.auth_header),regsub(^[Bb][Ee][Aa][Rr][Ee][Rr][[:space:]]+,)
+
+    # Validate extracted token via exact string match (no regex escaping issues)
+    acl auth_valid var(txn.api_token) -m str ${escaped_key_sed}
+
+    # Deny requests without valid authentication (except localhost health checks)
+    http-request deny deny_status 401 content-type \"application/json\" string '{\"error\":\"Unauthorized\",\"message\":\"Valid API key required\"}' if !is_health_check !auth_header_present
+    http-request deny deny_status 401 content-type \"application/json\" string '{\"error\":\"Unauthorized\",\"message\":\"Valid API key required\"}' if is_health_check !is_localhost !auth_header_present
+    http-request deny deny_status 403 content-type \"application/json\" string '{\"error\":\"Forbidden\",\"message\":\"Invalid API key\"}' if !is_health_check auth_header_present !auth_valid
+    http-request deny deny_status 403 content-type \"application/json\" string '{\"error\":\"Forbidden\",\"message\":\"Invalid API key\"}' if is_health_check !is_localhost auth_header_present !auth_valid"
     else
-        echo "API_KEY authentication DISABLED - all requests will be forwarded"
+        api_key_check="    # API Key authentication disabled - all requests allowed"
     fi
-    
-    # Display CORS status
+
+    local cors_check
+    local cors_preflight_condition
+    local cors_response_condition
+
     if [[ "$HAPROXY_CORS_ENABLED" == "true" ]]; then
         if [[ "$ALLOW_ALL_CORS" == "true" ]]; then
-            echo "CORS: Allowing ALL origins (wildcard)"
+            cors_check="    # CORS enabled - allowing ALL origins"
+            cors_preflight_condition="{ var(txn.origin) -m found }"
+            cors_response_condition="{ var(txn.origin) -m found }"
         else
-            echo "CORS: Restricting to allowed origins:"
+            cors_check="    # CORS enabled - allowing specific origins
+    acl cors_origin_allowed var(txn.origin) -m str -i"
+
+            local origin
             for origin in "${HAPROXY_CORS_ORIGINS[@]}"; do
-                echo "  - $origin"
+                cors_check+=" ${origin}"
             done
+
+            cors_check+="
+
+    # Deny requests from non-allowed origins
+    http-request deny deny_status 403 content-type \"application/json\" string '{\"error\":\"Forbidden\",\"message\":\"Origin not allowed\"}' if { var(txn.origin) -m found } !cors_origin_allowed"
+            cors_preflight_condition="cors_origin_allowed"
+            cors_response_condition="cors_origin_allowed"
         fi
     else
-        echo "CORS: Disabled (no origin restrictions)"
+        cors_check="    # CORS disabled"
+        cors_preflight_condition="{ always_false }"
+        cors_response_condition="{ always_false }"
     fi
-    
-    # Validate HAProxy config
-    if ! haproxy -c -f /tmp/haproxy.cfg 2>&1; then
-        echo "Error: Invalid HAProxy configuration"
-        cat /tmp/haproxy.cfg
-        exit 1
-    fi
-    
-    # Start HAProxy in background as root (needed for port binding)
-    haproxy -f /tmp/haproxy.cfg &
-    HAPROXY_PID=$!
-    
-    # Wait a moment for HAProxy to start
-    sleep 2
-    
-    if ! kill -0 $HAPROXY_PID 2>/dev/null; then
-        echo "Error: HAProxy failed to start"
-        exit 1
-    fi
-    
-    echo "HAProxy started successfully (PID: $HAPROXY_PID)"
+
+    local escaped_bind_params
+    local escaped_quic_bind_line
+    escaped_bind_params="$(escape_sed_replacement "$BIND_PARAMS")"
+    escaped_quic_bind_line="$(escape_sed_replacement "$QUIC_BIND_LINE")"
+
+    sed -e "s|__SERVER_PORT__|${PORT}|g" \
+        -e "s|__BIND_PARAMS__|${escaped_bind_params}|g" \
+        -e "s|__QUIC_BIND_LINE__|${escaped_quic_bind_line}|g" \
+        -e "s|__INTERNAL_PORT__|${INTERNAL_PORT}|g" \
+        -e "s|__SERVER_NAME__|${HAPROXY_SERVER_NAME}|g" \
+        -e "s|__CORS_PREFLIGHT_CONDITION__|${cors_preflight_condition}|g" \
+        -e "s|__CORS_RESPONSE_CONDITION__|${cors_response_condition}|g" \
+        "$HAPROXY_TEMPLATE" > "${HAPROXY_CONFIG}.tmp"
+
+    awk -v replacement="$api_key_check" -v replacement_cors="$cors_check" '
+        /__API_KEY_CHECK__/ {
+            print replacement
+            next
+        }
+        /__CORS_CHECK__/ {
+            print replacement_cors
+            next
+        }
+        { print }
+    ' "${HAPROXY_CONFIG}.tmp" > "$HAPROXY_CONFIG"
+
+    rm -f "${HAPROXY_CONFIG}.tmp"
+
+    haproxy -c -f "$HAPROXY_CONFIG" >/dev/null
 }
 
-# Main execution
-main() {
-    # Trim all input parameters
-    [[ -n "${PUID:-}" ]] && PUID=$(trim "$PUID")
-    [[ -n "${PGID:-}" ]] && PGID=$(trim "$PGID")
-    [[ -n "${PORT:-}" ]] && PORT=$(trim "$PORT")
-    [[ -n "${API_KEY:-}" ]] && API_KEY=$(trim "$API_KEY")
-    [[ -n "${PROTOCOL:-}" ]] && PROTOCOL=$(trim "$PROTOCOL")
-    [[ -n "${CORS:-}" ]] && CORS=$(trim "$CORS")
-    [[ -n "${NEO4J_URI:-}" ]] && NEO4J_URI=$(trim "$NEO4J_URI")
-    [[ -n "${NEO4J_USERNAME:-}" ]] && NEO4J_USERNAME=$(trim "$NEO4J_USERNAME")
-    [[ -n "${NEO4J_PASSWORD:-}" ]] && NEO4J_PASSWORD=$(trim "$NEO4J_PASSWORD")
+start_haproxy() {
+    echo "Starting HAProxy on port ${PORT}"
+    haproxy -db -f "$HAPROXY_CONFIG" &
+    HAPROXY_PID=$!
+}
 
-    # Validate configurations FIRST (before first run handling)
-    validate_port
+start_mcp_server() {
+    local mcp_server_cmd="npx -y codegraphcontext-mcp"
+
+    case "${PROTOCOL^^}" in
+        SHTTP|STREAMABLEHTTP)
+            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --streamableHttpPath /mcp --outputTransport streamableHttp --healthEndpoint /healthz --stdio "$mcp_server_cmd")
+            PROTOCOL_DISPLAY="SHTTP/streamableHttp"
+            ;;
+        SSE)
+            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --ssePath /sse --outputTransport sse --healthEndpoint /healthz --stdio "$mcp_server_cmd")
+            PROTOCOL_DISPLAY="SSE/Server-Sent Events"
+            ;;
+        WS|WEBSOCKET)
+            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --messagePath /message --outputTransport ws --healthEndpoint /healthz --stdio "$mcp_server_cmd")
+            PROTOCOL_DISPLAY="WS/WebSocket"
+            ;;
+        *)
+            echo "Invalid PROTOCOL='${PROTOCOL}', using default ${DEFAULT_PROTOCOL}"
+            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --streamableHttpPath /mcp --outputTransport streamableHttp --healthEndpoint /healthz --stdio "$mcp_server_cmd")
+            PROTOCOL_DISPLAY="SHTTP/streamableHttp"
+            ;;
+    esac
+
+    echo "Launching CodeGraphContext MCP with protocol: ${PROTOCOL_DISPLAY}"
+
+    if [ "$(id -u)" -eq 0 ]; then
+        gosu node "${CMD_ARGS[@]}" &
+    else
+        "${CMD_ARGS[@]}" &
+    fi
+
+    MCP_PID=$!
+
+    local i=0
+    until nc -z 127.0.0.1 "$INTERNAL_PORT" >/dev/null 2>&1; do
+        if ! kill -0 "$MCP_PID" >/dev/null 2>&1; then
+            echo "MCP server exited before becoming ready" >&2
+            return 1
+        fi
+
+        i=$((i + 1))
+        if [ "$i" -ge 30 ]; then
+            echo "MCP server did not become ready on ${INTERNAL_PORT}" >&2
+            return 1
+        fi
+
+        sleep 1
+    done
+}
+
+shutdown() {
+    set +e
+    if [[ -n "${HAPROXY_PID:-}" ]]; then
+        kill "$HAPROXY_PID" 2>/dev/null || true
+    fi
+    if [[ -n "${MCP_PID:-}" ]]; then
+        kill "$MCP_PID" 2>/dev/null || true
+    fi
+    wait 2>/dev/null || true
+}
+
+main() {
+    if [[ $# -gt 0 ]]; then
+        exec "$@"
+    fi
+
+    PUID="${PUID:-$DEFAULT_PUID}"
+    PGID="${PGID:-$DEFAULT_PGID}"
+    PUID="$(trim "$PUID")"
+    PGID="$(trim "$PGID")"
+
+    PORT="${PORT:-$DEFAULT_PORT}"
+    INTERNAL_PORT="${INTERNAL_PORT:-$DEFAULT_INTERNAL_PORT}"
+    PROTOCOL="${PROTOCOL:-$DEFAULT_PROTOCOL}"
+    ENABLE_HTTPS="${ENABLE_HTTPS:-false}"
+    TLS_CERT_PATH="${TLS_CERT_PATH:-/etc/haproxy/certs/server.crt}"
+    TLS_KEY_PATH="${TLS_KEY_PATH:-/etc/haproxy/certs/server.key}"
+    TLS_PEM_PATH="${TLS_PEM_PATH:-/etc/haproxy/certs/server.pem}"
+    TLS_CN="${TLS_CN:-$DEFAULT_TLS_CN}"
+    TLS_SAN="${TLS_SAN:-DNS:${TLS_CN}}"
+    TLS_DAYS="${TLS_DAYS:-$DEFAULT_TLS_DAYS}"
+    TLS_MIN_VERSION="${TLS_MIN_VERSION:-$DEFAULT_TLS_MIN_VERSION}"
+    HTTP_VERSION_MODE="${HTTP_VERSION_MODE:-$DEFAULT_HTTP_VERSION_MODE}"
+    CORS="${CORS:-}"
+
+    PORT="$(validate_port "PORT" "$PORT" "$DEFAULT_PORT")"
+    INTERNAL_PORT="$(validate_port "INTERNAL_PORT" "$INTERNAL_PORT" "$DEFAULT_INTERNAL_PORT")"
+    TLS_DAYS="$(validate_tls_days "$TLS_DAYS" "$DEFAULT_TLS_DAYS")"
+    TLS_MIN_VERSION="$(validate_tls_min_version "$TLS_MIN_VERSION" "$DEFAULT_TLS_MIN_VERSION")"
+    HTTP_VERSION_MODE="$(normalize_http_version_mode "$HTTP_VERSION_MODE")"
+
     validate_api_key
-    validate_neo4j_config
     validate_cors
 
-    # Set INTERNAL_PORT early so it's available for config generation
-    INTERNAL_PORT=$DEFAULT_INTERNAL_PORT
-
-    # First run handling (now with all variables set)
     if [[ ! -f "$FIRST_RUN_FILE" ]]; then
         handle_first_run
     fi
 
-    # Build MCP server command - cgc mcp start for CodeGraphContext
-    MCP_SERVER_CMD="/opt/venv/bin/cgc mcp start"
+    # Export variables for banner.sh (runs as child process)
+    export PORT PUID PGID PROTOCOL
+    /usr/local/bin/banner.sh
 
-    # Protocol selection
-    local PROTOCOL_UPPER=${PROTOCOL:-$DEFAULT_PROTOCOL}
-    PROTOCOL_UPPER=${PROTOCOL_UPPER^^}
+    if is_true "$ENABLE_HTTPS"; then
+        prepare_tls_pem "$TLS_CERT_PATH" "$TLS_KEY_PATH" "$TLS_PEM_PATH" "$TLS_DAYS" "$TLS_CN" "$TLS_SAN"
+    fi
 
-    case "$PROTOCOL_UPPER" in
-        "SHTTP"|"STREAMABLEHTTP")
-            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --streamableHttpPath /mcp --outputTransport streamableHttp --healthEndpoint /healthz --stdio "$MCP_SERVER_CMD")
-            PROTOCOL_DISPLAY="SHTTP/streamableHttp"
-            ;;
-        "SSE")
-            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --ssePath /sse --outputTransport sse --healthEndpoint /healthz --stdio "$MCP_SERVER_CMD")
-            PROTOCOL_DISPLAY="SSE/Server-Sent Events"
-            ;;
-        "WS"|"WEBSOCKET")
-            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --messagePath /message --outputTransport ws --healthEndpoint /healthz --stdio "$MCP_SERVER_CMD")
-            PROTOCOL_DISPLAY="WS/WebSocket"
-            ;;
-        *)
-            echo "Invalid PROTOCOL: '$PROTOCOL'. Using default: $DEFAULT_PROTOCOL"
-            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --streamableHttpPath /mcp --outputTransport streamableHttp --healthEndpoint /healthz --stdio "$MCP_SERVER_CMD")
-            PROTOCOL_DISPLAY="SHTTP/streamableHttp"
-            ;;
-    esac
+    resolve_listener_protocols "$HTTP_VERSION_MODE"
+    generate_haproxy_config
 
+    trap shutdown INT TERM EXIT
 
-    # Debug mode handling
-    case "${DEBUG_MODE:-}" in
-        [1YyTt]*|[Oo][Nn]|[Yy][Ee][Ss]|[Ee][Nn][Aa][Bb][Ll][Ee]*)
-            echo "DEBUG MODE: Installing nano and pausing container"
-            apt-get update && apt-get install -y nano 2>/dev/null || echo "Warning: Failed to install nano"
-            echo "Container paused for debugging. Exec into container to investigate."
-            exec tail -f /dev/null
-            ;;
-        *)
-            # Normal execution
-            echo "Launching CodeGraphContext MCP Server with protocol: $PROTOCOL_DISPLAY"
-            echo "External port: $PORT (via HAProxy). *** Use this port to connect to this MCP server. ***"
-            echo "Internal port: $INTERNAL_PORT (MCP server)"
-            echo "Neo4j Connection: $NEO4J_URI (user: $NEO4J_USERNAME)"
-            
-            # Check for required commands
-            if ! command -v /opt/venv/bin/cgc &>/dev/null; then
-                echo "Error: cgc command not available. CodeGraphContext may not be properly installed."
-                exit 1
-            fi
+    start_mcp_server
+    start_haproxy
 
-            if ! command -v npx &>/dev/null; then
-                echo "Error: npx not available. Cannot start supergateway."
-                exit 1
-            fi
+    if [[ -n "$API_KEY" ]]; then
+        echo "API key authentication enabled"
+    else
+        echo "API key authentication disabled"
+    fi
 
-            if ! command -v haproxy &>/dev/null; then
-                echo "Error: haproxy not available. Cannot start reverse proxy."
-                exit 1
-            fi
+    if is_true "$ENABLE_HTTPS"; then
+        echo "HTTPS enabled on port ${PORT}"
+        echo "HTTP versions enabled: ${EFFECTIVE_HTTP_VERSIONS}"
+    else
+        echo "HTTPS disabled; listening on HTTP port ${PORT}"
+        echo "WARNING: Traffic is NOT encrypted when ENABLE_HTTPS=false." >&2
+        echo "WARNING: Use ENABLE_HTTPS=true for internet-facing or untrusted networks." >&2
+        if [[ "${NODE_ENV:-}" =~ ^([Pp][Rr][Oo][Dd][Uu][Cc][Tt][Ii][Oo][Nn])$ ]]; then
+            echo "====================================================================" >&2
+            echo "SECURITY WARNING: NODE_ENV=production with ENABLE_HTTPS=false" >&2
+            echo "SECURITY WARNING: Requests and responses are plaintext over the network." >&2
+            echo "SECURITY WARNING: Enable TLS now by setting ENABLE_HTTPS=true." >&2
+            echo "====================================================================" >&2
+        fi
+        if [[ -n "$API_KEY" ]]; then
+            echo "WARNING: API_KEY protects access but does not encrypt HTTP traffic." >&2
+        fi
+    fi
 
-            # Verify Neo4j connection before starting (optional but recommended)
-            if command -v python3 &>/dev/null && [[ -n "$NEO4J_PASSWORD" ]]; then
-                echo "Verifying Neo4j connection..."
-                python3 -c "
-from neo4j import GraphDatabase
-import sys
-import os
-try:
-    driver = GraphDatabase.driver(
-        os.environ['NEO4J_URI'],
-        auth=(os.environ['NEO4J_USERNAME'], os.environ['NEO4J_PASSWORD'])
-    )
-    driver.verify_connectivity()
-    driver.close()
-    print('Neo4j connection verified successfully')
-except Exception as e:
-    print(f'Warning: Neo4j connection check failed: {e}', file=sys.stderr)
-    print('Continuing anyway - cgc will handle connection errors', file=sys.stderr)
-" || echo "Neo4j verification skipped or failed - continuing anyway"
-            fi
-
-            # Start HAProxy first (runs as root)
-            start_haproxy
-
-            # Execute MCP server with appropriate user switching
-            if [ "$(id -u)" -eq 0 ]; then
-                # Detect which command is available
-                if command -v gosu &>/dev/null; then
-                    exec gosu node "${CMD_ARGS[@]}"
-                elif command -v su-exec &>/dev/null; then
-                    exec su-exec node "${CMD_ARGS[@]}"
-                else
-                    echo "Error: Neither gosu nor su-exec found. Cannot drop privileges."
-                    exit 1
-                fi
-            else
-                exec "${CMD_ARGS[@]}"
-            fi
-            ;;
-    esac
+    wait -n "$MCP_PID" "$HAPROXY_PID"
 }
 
-# Run the script with error handling
-if main "$@"; then
-    exit 0
-else
-    exit 1
-fi
+main "$@"
