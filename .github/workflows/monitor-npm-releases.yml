@@ -1,4 +1,4 @@
-name: CodeGraphContext MCP NPM Build Pipeline
+name: CodeGraphContext MCP PyPI Build Pipeline
 
 on:
   workflow_dispatch:
@@ -50,12 +50,12 @@ permissions:
   packages: write
 
 concurrency:
-  group: codegraphcontext-mcp-npm-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.action || github.event_name == 'repository_dispatch' && (github.event.client_payload.action || 'external') || 'manual' }}
+  group: codegraphcontext-mcp-pypi-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.action || github.event_name == 'repository_dispatch' && (github.event.client_payload.action || 'external') || 'manual' }}
   cancel-in-progress: false
 
 env:
-  NPM_PACKAGE: 'codegraphcontext-mcp'
-  NPM_REGISTRY: 'https://registry.npmjs.org'
+  PYPI_PACKAGE: 'codegraphcontext'
+  PYPI_REGISTRY: 'https://pypi.org'
   MAX_VERSIONS: '10'
   TZ: ${{ vars.TZ || 'Asia/Dhaka' }}
   PRIMARY_REGISTRY: 'ghcr'
@@ -104,34 +104,34 @@ jobs:
             exit 0
           fi
 
-          # Check current NPM latest version
-          CURRENT_NPM_LATEST="$(curl -fsSL "${NPM_REGISTRY}/${NPM_PACKAGE}" | jq -r '."dist-tags".latest // ""' 2>/dev/null || echo "")"
-          if [[ -z "$CURRENT_NPM_LATEST" ]]; then
-            echo "Could not fetch NPM latest — running pipeline as fallback"
+          # Check current PyPI latest version
+          CURRENT_PYPI_LATEST="$(curl -fsSL "${PYPI_REGISTRY}/pypi/${PYPI_PACKAGE}/json" | jq -r '.info.version // ""' 2>/dev/null || echo "")"
+          if [[ -z "$CURRENT_PYPI_LATEST" ]]; then
+            echo "Could not fetch PyPI latest — running pipeline as fallback"
             echo "should_run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           # Read stored state from pipeline-state branch
-          STORED_NPM_LATEST=""
+          STORED_PYPI_LATEST=""
           STATE_JSON="$(gh api "repos/${REPO}/contents/${STATE_FILE}?ref=${STATE_BRANCH}" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null || echo "")"
           if [[ -n "$STATE_JSON" ]]; then
-            STORED_NPM_LATEST="$(echo "$STATE_JSON" | jq -r '.npm_latest_version // ""' 2>/dev/null || echo "")"
+            STORED_PYPI_LATEST="$(echo "$STATE_JSON" | jq -r '.pypi_latest_version // .npm_latest_version // ""' 2>/dev/null || echo "")"
           fi
 
-          if [[ -z "$STORED_NPM_LATEST" ]]; then
-            echo "No stored NPM version — first run, running pipeline"
+          if [[ -z "$STORED_PYPI_LATEST" ]]; then
+            echo "No stored PyPI version — first run, running pipeline"
             echo "should_run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          if [[ "$CURRENT_NPM_LATEST" != "$STORED_NPM_LATEST" ]]; then
-            echo "NPM latest changed: ${STORED_NPM_LATEST} -> ${CURRENT_NPM_LATEST} — running pipeline"
+          if [[ "$CURRENT_PYPI_LATEST" != "$STORED_PYPI_LATEST" ]]; then
+            echo "PyPI latest changed: ${STORED_PYPI_LATEST} -> ${CURRENT_PYPI_LATEST} — running pipeline"
             echo "should_run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          echo "NPM latest unchanged (${CURRENT_NPM_LATEST}) — skipping pipeline"
+          echo "PyPI latest unchanged (${CURRENT_PYPI_LATEST}) — skipping pipeline"
           echo "should_run=false" >> "$GITHUB_OUTPUT"
 
   preflight:
@@ -201,10 +201,10 @@ jobs:
 
           REQUESTED_ACTION="${{ steps.normalize.outputs.action }}" \
           MANUAL_VERSIONS_RAW="${{ steps.normalize.outputs.versions }}" \
-          NPM_PACKAGE="${NPM_PACKAGE}" \
-          NPM_REGISTRY="${NPM_REGISTRY}" \
+          PYPI_PACKAGE="${PYPI_PACKAGE}" \
+          PYPI_REGISTRY="${PYPI_REGISTRY}" \
           MAX_VERSIONS="${MAX_VERSIONS}" \
-          bash .github/scripts/fetch-releases.sh
+          bash .github/scripts/fetch-releases-pypi.sh
 
   build-versions:
     name: Build selected versions

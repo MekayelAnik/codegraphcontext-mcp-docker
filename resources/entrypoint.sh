@@ -461,7 +461,7 @@ start_haproxy() {
 }
 
 start_mcp_server() {
-    local mcp_server_cmd="npx -y codegraphcontext-mcp"
+    local mcp_server_cmd="/opt/venv/bin/cgc mcp start"
 
     case "${PROTOCOL^^}" in
         SHTTP|STREAMABLEHTTP)
