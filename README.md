@@ -1,15 +1,15 @@
 # CodeGraphContext MCP Server
-### Multi-Architecture Docker Image for Distributed Deployment
+### Multi-Architecture Docker Image for Code Analysis & Graph Context
 
 <div align="left">
 
-<img alt="codegraphcontext-mcp" src="https://img.shields.io/badge/CodeGraph-Context-00D9FF?style=for-the-badge&logo=neo4j&logoColor=white" width="400">
+<img alt="codegraphcontext-mcp" src="https://img.shields.io/badge/CodeGraphContext-MCP-00E9A3?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDJMMiA3TDEyIDEyTDIyIDdMMTIgMloiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik0yIDEyTDEyIDE3TDIyIDEyIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgo8cGF0aCBkPSJNMiAxN0wxMiAyMkwyMiAxNyIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+&logoColor=white" width="400">
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/mekayelanik/codegraphcontext-mcp.svg?style=flat-square)](https://hub.docker.com/r/mekayelanik/codegraphcontext-mcp)
 [![Docker Stars](https://img.shields.io/docker/stars/mekayelanik/codegraphcontext-mcp.svg?style=flat-square)](https://hub.docker.com/r/mekayelanik/codegraphcontext-mcp)
-[![Docker Image License](https://img.shields.io/badge/license-GPL-blue.svg?style=flat-square)](https://raw.githubusercontent.com/MekayelAnik/codegraphcontext-mcp-docker/refs/heads/main/LICENSE)
+[![License](https://img.shields.io/badge/license-GPL-blue.svg?style=flat-square)](https://raw.githubusercontent.com/MekayelAnik/codegraphcontext-mcp-docker/refs/heads/main/LICENSE)
 
-**[Docker Image GitHub Repository](https://github.com/MekayelAnik/codegraphcontext-mcp-docker)** • **[Docker Hub](https://hub.docker.com/r/mekayelanik/codegraphcontext-mcp)** • **[Documentation](https://shashankss1205.github.io/CodeGraphContext/)** • **[Main Project GitHub Repository](https://github.com/Shashankss1205/CodeGraphContext)** • **[PyPI Package](https://pypi.org/project/codegraphcontext/)**
+**[Official Website](https://github.com/nicholasgriffintn/codegraphcontext-mcp/)** • **[Documentation](https://github.com/nicholasgriffintn/codegraphcontext-mcp)** • **[Docker Hub](https://hub.docker.com/r/mekayelanik/codegraphcontext-mcp)**
 
 </div>
 
@@ -18,20 +18,21 @@
 ## 📋 Table of Contents
 
 - [Overview](#overview)
+- [Supported Architectures](#supported-architectures)
+- [Available Tags](#available-tags)
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
-- [MCP Client Setup](#mcp-client-setup)
-- [Available Tools](#available-tools)
-- [Neo4j Setup](#neo4j-setup)
-- [Remote Deployment](#remote-deployment)
+- [MCP Client Configuration](#mcp-client-configuration)
+- [Network Configuration](#network-configuration)
+- [Updating](#updating)
 - [Troubleshooting](#troubleshooting)
-- [Resources & Support](#resources--support)
+- [Additional Resources](#additional-resources)
+- [Support & License](#support--license)
+- [Major Changes](#major-changes)
 
 ---
 
-
-## Buy Me a Coffee
-
+## 😎 Buy Me a Coffee ☕︎
 **Your support encourages me to keep creating/supporting my open-source projects.** If you found value in this project, you can buy me a coffee to keep me inspired.
 
 <p align="center">
@@ -40,112 +41,101 @@
 </a>
 </p>
 
-
 ## Overview
 
-CodeGraphContext MCP Server transforms your codebase into a queryable knowledge graph powered by Neo4j. It provides AI assistants with deep contextual understanding of code relationships, dependencies, and architecture patterns, integrating seamlessly with VS Code, Cursor, Windsurf, and Claude Desktop.
+CodeGraphContext MCP Server provides code analysis and graph-based context capabilities through the Model Context Protocol. Built for comprehensive codebase understanding.
 
 ### Key Features
 
-✨ **Intelligent Code Indexing** - Automatically analyzes and graphs code structure with background job processing  
-🔍 **Relationship Analysis** - Query callers, callees, class hierarchies, and dependencies  
-📊 **Live Updates** - Real-time file watching with automatic graph synchronization  
-🎯 **Dead Code Detection** - Identify unused functions and quality issues  
-📈 **Complexity Analysis** - Calculate cyclomatic complexity and find hotspots  
-🔗 **Call Chain Tracing** - Track execution flows across hundreds of files  
-🚀 **Multiple Protocols** - HTTP, SSE, and WebSocket support  
-🗄️ **Graph Database Powered** - Neo4j backend for lightning-fast queries  
-⚡ **Async Processing** - Background jobs for large codebases
+✨ **Multi-Architecture Support** - Native support for x86-64 and ARM64  
+🚀 **Multiple Transport Protocols** - HTTP, SSE, and WebSocket support  
+🔒 **Secure by Design** - Alpine-based with minimal attack surface  
+⚡ **High Performance** - ZSTD compression for faster deployments  
+🎯 **Production Ready** - Stable releases with comprehensive testing  
+🔧 **Easy Configuration** - Simple environment variable setup
 
-### Supported Architectures
+---
 
-| Architecture | Status | Notes |
-|:-------------|:------:|:------|
-| **x86-64** | ✅ Stable | Intel/AMD processors |
-| **ARM64** | ✅ Stable | Raspberry Pi, Apple Silicon |
+## Supported Architectures
 
-### Available Tags
+| Architecture | Tag Prefix | Status |
+|:-------------|:-----------|:------:|
+| **x86-64** | `amd64-<version>` | ✅ Stable |
+| **ARM64** | `arm64v8-<version>` | ✅ Stable |
 
-| Tag | Stability | Use Case |
-|:----|:---------:|:---------|
-| `stable` | ⭐⭐⭐ | **Production (recommended)** |
-| `latest` | ⭐⭐⭐ | Latest stable features |
-| `0.1.x` | ⭐⭐⭐ | Version pinning |
-| `beta` | ⚠️ | Testing only |
+> 💡 Multi-arch images automatically select the correct architecture for your system.
+
+---
+
+## Available Tags
+
+| Tag | Stability | Description | Use Case |
+|:----|:---------:|:------------|:---------|
+| `stable` | ⭐⭐⭐ | Most stable release | **Recommended for production** |
+| `latest` | ⭐⭐⭐ | Latest stable release | Stay current with stable features |
+| `1.0.21` | ⭐⭐⭐ | Specific version | Version pinning for consistency |
+| `beta` | ⚠️ | Beta releases | **Testing only** |
+
+### System Requirements
+
+- **Docker Engine:** 23.0+
+- **RAM:** Minimum 512MB
+- **CPU:** Single core sufficient
+
+> 🔒 **CRITICAL:** Do NOT expose this container directly to the internet without proper security measures (reverse proxy, SSL/TLS, authentication, firewall rules).
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-
-- Docker Engine 23.0+
-- Neo4j database (local or hosted)
-
 ### Docker Compose (Recommended)
 
 ```yaml
 services:
-  neo4j:
-    image: neo4j:latest
-    container_name: neo4j
-    restart: unless-stopped
-    ports:
-      - "7474:7474"
-      - "7687:7687"
-    environment:
-      - NEO4J_AUTH=neo4j/your-secure-password
-      - NEO4J_PLUGINS=["apoc"]
-    volumes:
-      - neo4j_data:/data
-
   codegraphcontext-mcp:
     image: mekayelanik/codegraphcontext-mcp:stable
-    container_name: cgc-mcp
+    container_name: codegraphcontext-mcp
     restart: unless-stopped
     ports:
       - "8045:8045"
     environment:
       - PORT=8045
-      - NEO4J_URI=bolt://neo4j:7687
-      - NEO4J_USERNAME=neo4j
-      - NEO4J_PASSWORD=your-secure-password
+      - INTERNAL_PORT=38046
       - PUID=1000
       - PGID=1000
       - TZ=Asia/Dhaka
-      - PROTOCOL=SHTTP
-      - CORS=*
-    volumes:
-      - /path/to/your/projects:/workspace:ro
-    depends_on:
-      - neo4j
-
-volumes:
-  neo4j_data:
+      - NODE_ENV=production
+      - PROTOCOL=HTTP
+      - ENABLE_HTTPS=false
+      - HTTP_VERSION_MODE=auto
+      # Optional: require Bearer token auth at HAProxy layer
+      # - API_KEY=replace-with-strong-secret
+    hostname: codegraphcontext-mcp
+    domainname: local
 ```
 
 **Deploy:**
-
 ```bash
 docker compose up -d
-docker compose logs -f cgc-mcp
+docker compose logs -f codegraphcontext-mcp
 ```
 
 ### Docker CLI
 
 ```bash
 docker run -d \
-  --name=cgc-mcp \
+  --name=codegraphcontext-mcp \
   --restart=unless-stopped \
   -p 8045:8045 \
-  -v /path/to/your/projects:/workspace:ro \
   -e PORT=8045 \
-  -e NEO4J_URI=bolt://your-neo4j:7687 \
-  -e NEO4J_USERNAME=neo4j \
-  -e NEO4J_PASSWORD=your-password \
+  -e INTERNAL_PORT=38046 \
   -e PUID=1000 \
   -e PGID=1000 \
-  -e PROTOCOL=SHTTP \
+  -e TZ=Asia/Dhaka \
+  -e NODE_ENV=production \
+  -e PROTOCOL=HTTP \
+  -e ENABLE_HTTPS=false \
+  -e HTTP_VERSION_MODE=auto \
   mekayelanik/codegraphcontext-mcp:stable
 ```
 
@@ -153,12 +143,21 @@ docker run -d \
 
 | Protocol | Endpoint | Use Case |
 |:---------|:---------|:---------|
-| **HTTP** | `http://host-ip:8045/mcp` | **Recommended** |
+| **HTTP** | `http://host-ip:8045/mcp` | Best compatibility (recommended) |
 | **SSE** | `http://host-ip:8045/sse` | Real-time streaming |
-| **WebSocket** | `ws://host-ip:8045/message` | Bidirectional |
-| **Health** | `http://host-ip:8045/healthz` | Monitoring |
+| **WebSocket** | `ws://host-ip:8045/message` | Bidirectional communication |
 
-> ⏱️ Allow 30-60 seconds for initialization on ARM devices
+When HTTPS is enabled (`ENABLE_HTTPS=true`), use TLS endpoints:
+
+| Protocol | Endpoint |
+|:---------|:---------|
+| **SHTTP** | `https://host-ip:8045/mcp` |
+| **SSE** | `https://host-ip:8045/sse` |
+| **WebSocket** | `wss://host-ip:8045/message` |
+
+> ⚠️ **Security Warning:** The container now defaults to HTTP (`ENABLE_HTTPS=false`) for easier local setup. Use `ENABLE_HTTPS=true` for production, public networks, or any untrusted environment.
+>
+> ⏱️ **ARM Devices:** Allow 30-60 seconds for initialization before accessing endpoints.
 
 ---
 
@@ -169,127 +168,142 @@ docker run -d \
 | Variable | Default | Description |
 |:---------|:-------:|:------------|
 | `PORT` | `8045` | Internal server port |
-| `NEO4J_URI` | `bolt://localhost:7687` | Neo4j connection string |
-| `NEO4J_USERNAME` | `neo4j` | Database username |
-| `NEO4J_PASSWORD` | _(required)_ | Database password |
-| `PUID` | `1000` | User ID for permissions |
-| `PGID` | `1000` | Group ID for permissions |
-| `TZ` | `Asia/Dhaka` | Container timezone |
-| `PROTOCOL` | `SHTTP` | Transport protocol (`SHTTP`, `SSE`, `WS`) |
-| `CORS` | _(none)_ | Cross-Origin config (`*`, domains, regex) |
-| `API_KEY` | _(none)_ | Optional authentication |
-| `DEBUG_MODE` | `false` | Enable debug mode |
+| `INTERNAL_PORT` | `38046` | Internal MCP server port used by supergateway |
+| `PUID` | `1000` | User ID for file permissions |
+| `PGID` | `1000` | Group ID for file permissions |
+| `TZ` | `Asia/Dhaka` | Container timezone ([TZ database](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)) |
+| `NODE_ENV` | `production` | Node.js environment |
+| `PROTOCOL` | `SHTTP` | Default transport protocol |
+| `API_KEY` | *(empty)* | Enables Bearer token auth (`Authorization: Bearer <API_KEY>`) |
+| `CORS` | *(empty)* | Comma-separated CORS origins, supports `*` |
+| `ENABLE_HTTPS` | `false` | Enables TLS termination in HAProxy |
+| `TLS_CERT_PATH` | `/etc/haproxy/certs/server.crt` | TLS cert path |
+| `TLS_KEY_PATH` | `/etc/haproxy/certs/server.key` | TLS private key path |
+| `TLS_PEM_PATH` | `/etc/haproxy/certs/server.pem` | Combined PEM file used by HAProxy |
+| `TLS_CN` | `localhost` | CN for auto-generated certificate |
+| `TLS_SAN` | `DNS:<TLS_CN>` | SAN for auto-generated certificate |
+| `TLS_DAYS` | `365` | Auto-generated cert validity period |
+| `TLS_MIN_VERSION` | `TLSv1.3` | Minimum TLS protocol (`TLSv1.2` or `TLSv1.3`) |
+| `HTTP_VERSION_MODE` | `auto` | `auto`, `all`, `h1`, `h2`, `h3`, `h1+h2` |
+| `DEBUG_MODE` | *(empty)* | Enables debug hold mode when set truthy |
 
-### Volume Mounting
+### HTTPS and HTTP Version Notes
 
-Mount your project directories to make them accessible to the MCP server:
+- If `ENABLE_HTTPS=true` and cert files are missing, the container auto-generates a self-signed certificate.
+- If `TLS_CERT_PATH` and `TLS_KEY_PATH` exist, they are merged into `TLS_PEM_PATH` and used directly.
+- `HTTP_VERSION_MODE=h3` (or `auto`) enables HTTP/3 only when HAProxy build includes QUIC; otherwise it safely falls back.
 
-```yaml
-volumes:
-  - /home/user/projects:/workspace:ro        # Read-only recommended
-  - /var/www/apps:/apps:ro
-  - /opt/repositories:/repos:ro
+### API Key Authentication Notes
+
+- Set `API_KEY` to enforce authentication at reverse proxy level.
+- Expected header format: `Authorization: Bearer <API_KEY>`.
+- Localhost health checks remain accessible for liveness/readiness.
+
+### User & Group IDs
+
+Find your IDs and set them to avoid permission issues:
+
+```bash
+id username
+# uid=1000(user) gid=1000(group)
 ```
 
-Then reference paths as `/workspace/project-name`, `/apps/app-name`, etc.
-
-### Neo4j Configuration Examples
+### Timezone Examples
 
 ```yaml
-# Local Docker
-environment:
-  - NEO4J_URI=bolt://neo4j:7687
-  - NEO4J_USERNAME=neo4j
-  - NEO4J_PASSWORD=your-password
-
-# Remote Server
-environment:
-  - NEO4J_URI=bolt://server.com:7687
-  - NEO4J_USERNAME=neo4j
-  - NEO4J_PASSWORD=your-password
-
-# Neo4j AuraDB (Cloud)
-environment:
-  - NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io
-  - NEO4J_USERNAME=neo4j
-  - NEO4J_PASSWORD=your-auradb-password
+- TZ=Asia/Dhaka        # Bangladesh
+- TZ=America/New_York  # US Eastern
+- TZ=Europe/London     # UK
+- TZ=UTC               # Universal Time
 ```
-
-### CORS Configuration
-
-```yaml
-# Development only
-environment:
-  - CORS=*
-
-# Production - specific domains
-environment:
-  - CORS=https://example.com,https://app.example.com
-
-# Mixed domains and IPs
-environment:
-  - CORS=https://example.com,192.168.1.100:3000
-```
-
-> ⚠️ **Security:** Never use `CORS=*` in production
 
 ---
 
-## MCP Client Setup
+## MCP Client Configuration
 
-### Transport Compatibility
+### Transport Support
 
 | Client | HTTP | SSE | WebSocket | Recommended |
 |:-------|:----:|:---:|:---------:|:------------|
 | **VS Code (Cline/Roo-Cline)** | ✅ | ✅ | ❌ | HTTP |
 | **Claude Desktop** | ✅ | ✅ | ⚠️* | HTTP |
+| **Claude CLI** | ✅ | ✅ | ⚠️* | HTTP |
+| **Codex CLI** | ✅ | ✅ | ⚠️* | HTTP |
+| **Codeium (Windsurf)** | ✅ | ✅ | ⚠️* | HTTP |
 | **Cursor** | ✅ | ✅ | ⚠️* | HTTP |
-| **Windsurf** | ✅ | ✅ | ⚠️* | HTTP |
 
-> ⚠️ *WebSocket is experimental
+> ⚠️ *WebSocket is experimental ([Issue #1288](https://github.com/modelcontextprotocol/modelcontextprotocol/issues/1288))
+
+---
 
 ### VS Code (Cline/Roo-Cline)
 
-Add to `.vscode/settings.json`:
+Configure in `.vscode/settings.json`:
 
 ```json
 {
   "mcp.servers": {
     "codegraphcontext": {
       "url": "http://host-ip:8045/mcp",
-      "transport": "http",
-      "autoApprove": [
-        "add_code_to_graph",
-        "check_job_status",
-        "list_jobs",
-        "find_code",
-        "analyze_code_relationships",
-        "watch_directory",
-        "execute_cypher_query",
-        "add_package_to_graph",
-        "find_dead_code",
-        "calculate_cyclomatic_complexity",
-        "find_most_complex_functions",
-        "list_indexed_repositories",
-        "delete_repository",
-        "list_watched_paths",
-        "unwatch_directory"
-      ]
+      "transport": "http"
     }
   }
 }
 ```
 
-### Claude Desktop/Code
+---
 
+### Claude Desktop App/Claude Code
+
+**Configuration:**
+### **With API_KEY**
 ```
-### CLI
 claude mcp add-json github '{"type":"http","url":"http://localhost:8045/mcp","headers":{"Authorization":"Bearer <YOUR_API_KEY>"}}'
 ```
+### **Without API_KEY**
+```
+claude mcp add-json github '{"type":"http","url":"http://localhost:8045/mcp"}'
+```
+
+---
+
+### Codex CLI
+
+Configure in `~/.codex/config.json`:
+
+```json
+{
+  "mcpServers": {
+    "codegraphcontext": {
+      "transport": "http",
+      "url": "http://host-ip:8045/mcp"
+    }
+  }
+}
+```
+
+---
+
+### Codeium (Windsurf)
+
+Configure in `.codeium/mcp_settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "codegraphcontext": {
+      "transport": "http",
+      "url": "http://host-ip:8045/mcp"
+    }
+  }
+}
+```
+
+---
 
 ### Cursor
 
-Add to `~/.cursor/mcp.json`:
+Configure in `~/.cursor/mcp.json`:
 
 ```json
 {
@@ -302,300 +316,117 @@ Add to `~/.cursor/mcp.json`:
 }
 ```
 
-### Windsurf (Codeium)
+---
 
-Add to `.codeium/mcp_settings.json`:
+### Testing Configuration
 
-```json
-{
-  "mcpServers": {
-    "codegraphcontext": {
-      "transport": "http",
-      "url": "http://host-ip:8045/mcp"
-    }
-  }
-}
-```
-
-### Claude Code
-
-Add to `~/.config/claude-code/mcp_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "codegraphcontext": {
-      "transport": "http",
-      "url": "http://localhost:8045/mcp"
-    }
-  }
-}
-```
-
-Or configure via CLI:
+Verify with [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
 
 ```bash
-claude-code config mcp add codegraphcontext \
-  --transport http \
-  --url http://localhost:8045/mcp
-```
-
-### GitHub Copilot CLI
-
-Add to `~/.github-copilot/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "codegraphcontext": {
-      "transport": "http",
-      "url": "http://host-ip:8045/mcp"
-    }
-  }
-}
-```
-
-Or use environment variable:
-
-```bash
-export GITHUB_COPILOT_MCP_SERVERS='{"codegraphcontext":{"transport":"http","url":"http://localhost:8045/mcp"}}'
+npm install -g @modelcontextprotocol/inspector
+mcp-inspector http://host-ip:8045/mcp
 ```
 
 ---
 
-## Available Tools
+## Network Configuration
 
-### 📦 add_code_to_graph
-Performs a one-time scan of a local folder to add its code to the graph. Ideal for indexing libraries, dependencies, or projects not being actively modified. Returns a job ID for background processing.
+### Comparison
 
-**Parameters:** `directory` (required), `repository_name` (optional)
-
-**Example:** "Index the code in /workspace/my-project"
-
----
-
-### ⏳ check_job_status
-Check the status and progress of a background job.
-
-**Parameters:** `job_id` (required)
-
-**Example:** "Check status of job abc123"
+| Network Mode | Complexity | Performance | Use Case |
+|:-------------|:----------:|:-----------:|:---------|
+| **Bridge** | ⭐ Easy | ⭐⭐⭐ Good | Default, isolated |
+| **Host** | ⭐⭐ Moderate | ⭐⭐⭐⭐ Excellent | Direct host access |
+| **MACVLAN** | ⭐⭐⭐ Advanced | ⭐⭐⭐⭐ Excellent | Dedicated IP |
 
 ---
 
-### 📋 list_jobs
-List all background jobs and their current status.
+### Bridge Network (Default)
 
-**Example:** "Show all jobs"
-
----
-
-### 🔍 find_code
-Find relevant code snippets related to a keyword (e.g., function name, class name, or content).
-
-**Parameters:** `name` (required), `type` (optional)
-
-**Example:** "Find the calculate_total function"
-
----
-
-### 🔗 analyze_code_relationships
-Analyze code relationships like 'who calls this function' or 'class hierarchy'. Supported query types include: find_callers, find_callees, find_all_callers, find_all_callees, find_importers, who_modifies, class_hierarchy, overrides, dead_code, call_chain, module_deps, variable_scope, find_complexity, find_functions_by_argument, find_functions_by_decorator.
-
-**Parameters:** `name` (required), `relationship_type` (optional), `max_depth` (optional)
-
-**Example:** "Show what calls the process_payment function"
-
----
-
-### 👁️ watch_directory
-Performs an initial scan of a directory and then continuously monitors it for changes, automatically keeping the graph up-to-date. Ideal for projects under active development. Returns a job ID for the initial scan.
-
-**Parameters:** `directory` (required), `repository_name` (optional)
-
-**Example:** "Watch /workspace/active-project for changes"
-
----
-
-### 💾 execute_cypher_query
-Fallback tool to run a direct, read-only Cypher query against the code graph. Use this for complex questions not covered by other tools. The graph contains nodes representing code structures and relationships between them.
-
-**Schema Overview:**
-- **Nodes:** Repository, File, Module, Class, Function
-- **Properties:** name, path, cyclomatic_complexity (on Function nodes), code
-- **Relationships:** CONTAINS, CALLS, IMPORTS, INHERITS
-
-**Parameters:** `query` (required), `parameters` (optional)
-
-**Example:** "Execute: MATCH (f:Function) RETURN f.name LIMIT 10"
-
----
-
-### 📚 add_package_to_graph
-Add a package to the graph by discovering its location. Supports multiple languages. Returns immediately with a job ID.
-
-**Parameters:** `package_name` (required)
-
-**Example:** "Add the requests package to the graph"
-
----
-
-### 🔍 find_dead_code
-Find potentially unused functions (dead code) across the entire indexed codebase, optionally excluding functions with specific decorators.
-
-**Parameters:** `repository_name` (optional), `exclude_decorators` (optional)
-
-**Example:** "Find dead code in my-project"
-
----
-
-### 📊 calculate_cyclomatic_complexity
-Calculate the cyclomatic complexity of a specific function to measure its complexity.
-
-**Parameters:** `function_name` (required), `file_path` (optional)
-
-**Example:** "Calculate complexity of process_data"
-
----
-
-### 🎯 find_most_complex_functions
-Find the most complex functions in the codebase based on cyclomatic complexity.
-
-**Parameters:** `limit` (optional), `repository_name` (optional)
-
-**Example:** "Find the 5 most complex functions"
-
----
-
-### 📋 list_indexed_repositories
-List all indexed repositories.
-
-**Example:** "Show all indexed repositories"
-
----
-
-### 🗑️ delete_repository
-Delete an indexed repository from the graph.
-
-**Parameters:** `repository_path` (required)
-
-**Example:** "Delete repository at /workspace/old-project"
-
----
-
-### 📈 visualize_graph_query
-Generates a URL to visualize the results of a Cypher query in the Neo4j Browser. The user can open this URL in their web browser to see the graph visualization.
-
-**Parameters:** `query` (required), `parameters` (optional)
-
-**Example:** "Visualize: MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 50"
-
----
-
-### 📁 list_watched_paths
-Lists all directories currently being watched for live file changes.
-
-**Example:** "Show watched directories"
-
----
-
-### 🛑 unwatch_directory
-Stops watching a directory for live file changes.
-
-**Parameters:** `directory` (required)
-
-**Example:** "Stop watching /workspace/project"
-
----
-
-## Neo4j Setup
-
-### Local Neo4j (Docker)
-
-```yaml
-services:
-  neo4j:
-    image: neo4j:latest
-    ports:
-      - "7474:7474"
-      - "7687:7687"
-    environment:
-      - NEO4J_AUTH=neo4j/your-password
-      - NEO4J_PLUGINS=["apoc"]
-      - NEO4J_dbms_memory_heap_max__size=2G
-    volumes:
-      - neo4j_data:/data
-```
-
-**Access:** `http://localhost:7474`
-
-### Neo4j AuraDB (Cloud)
-
-1. Create account at [neo4j.com/cloud/aura](https://neo4j.com/cloud/aura/)
-2. Create instance and note credentials
-3. Configure container with AuraDB URI
-
-### Neo4j Desktop
-
-1. Download [Neo4j Desktop](https://neo4j.com/download/)
-2. Create and start database
-3. Use `bolt://localhost:7687` connection
-
----
-
-## Remote Deployment
-
-### Deployment Considerations
-
-The MCP server can be deployed remotely and accessed via URL from your IDE clients. However, understand these requirements:
-
-**Filesystem Access Required:**
-- `add_code_to_graph` and `watch_directory` need direct access to code directories
-- Mount your project directories into the container via Docker volumes
-- Alternative: Use `add_package_to_graph` for public packages
-
-**Query Operations Work Remotely:**
-- All analysis tools (`find_code`, `analyze_code_relationships`, etc.) work perfectly over remote connections
-- Once code is indexed in Neo4j, location doesn't matter
-
-### Remote Setup Example
-
-**Server (where code exists):**
 ```yaml
 services:
   codegraphcontext-mcp:
     image: mekayelanik/codegraphcontext-mcp:stable
     ports:
       - "8045:8045"
-    volumes:
-      - /var/repositories:/repos:ro
-      - /home/user/projects:/projects:ro
-    environment:
-      - NEO4J_URI=bolt://neo4j-server:7687
-      - NEO4J_USERNAME=neo4j
-      - NEO4J_PASSWORD=password
-      - CORS=https://your-domain.com
 ```
 
-**Client (IDE configuration):**
-```json
-{
-  "mcpServers": {
-    "codegraphcontext": {
-      "transport": "http",
-      "url": "http://your-server-ip:8045/mcp"
-    }
-  }
-}
+**Benefits:** Container isolation, easy setup, works everywhere
+**Access:** `http://localhost:8045/mcp`
+
+---
+
+### Host Network (Linux Only)
+
+```yaml
+services:
+  codegraphcontext-mcp:
+    image: mekayelanik/codegraphcontext-mcp:stable
+    network_mode: host
 ```
 
-### Security Best Practices
+**Benefits:** Maximum performance, no NAT overhead, no port mapping needed
+**Considerations:** Linux only, shares host network namespace
+**Access:** `http://localhost:8045/mcp`
 
-- Use HTTPS reverse proxy (nginx/Caddy) for production
-- Configure specific CORS domains, never use `*` in production
-- Consider VPN/SSH tunneling for sensitive codebases
-- Enable `API_KEY` authentication for additional security
-- Use read-only volume mounts (`:ro`) when possible
+---
+
+### MACVLAN Network (Advanced)
+
+```yaml
+services:
+  codegraphcontext-mcp:
+    image: mekayelanik/codegraphcontext-mcp:stable
+    mac_address: "AB:BC:CD:DE:EF:01"
+    networks:
+      macvlan-net:
+        ipv4_address: 192.168.1.100
+
+networks:
+  macvlan-net:
+    driver: macvlan
+    driver_opts:
+      parent: eth0
+    ipam:
+      config:
+        - subnet: 192.168.1.0/24
+          gateway: 192.168.1.1
+```
+
+**Benefits:** Dedicated IP, direct LAN access
+**Considerations:** Linux only, requires additional setup
+**Access:** `http://192.168.1.100:8045/mcp`
+
+---
+
+## Updating
+
+### Docker Compose
+
+```bash
+docker compose pull
+docker compose up -d
+docker image prune -f
+```
+
+### Docker CLI
+
+```bash
+docker pull mekayelanik/codegraphcontext-mcp:stable
+docker stop codegraphcontext-mcp && docker rm codegraphcontext-mcp
+# Run your original docker run command
+docker image prune -f
+```
+
+### One-Time Update with Watchtower
+
+```bash
+docker run --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  containrrr/watchtower \
+  --run-once \
+  codegraphcontext-mcp
+```
 
 ---
 
@@ -603,136 +434,142 @@ services:
 
 ### Pre-Flight Checklist
 
-- ✅ Docker 23.0+
-- ✅ Neo4j running and accessible
+- ✅ Docker Engine 23.0+
 - ✅ Port 8045 available
+- ✅ Sufficient startup time (ARM devices)
 - ✅ Latest stable image
 - ✅ Correct configuration
-- ✅ Project directories mounted
 
 ### Common Issues
 
-**Container Won't Start**
+#### Container Won't Start
+
 ```bash
-docker logs cgc-mcp
-docker pull mekayelanik/codegraphcontext-mcp:stable
+# Check Docker version
+docker --version
+
+# Verify port availability
+sudo netstat -tulpn | grep 8045
+
+# Check logs
+docker logs codegraphcontext-mcp
 ```
 
-**Neo4j Connection Failed**
+#### Permission Errors
+
+```bash
+# Get your IDs
+id $USER
+
+# Update configuration with correct PUID/PGID
+# Fix volume permissions if needed
+sudo chown -R 1000:1000 /path/to/volume
+```
+
+#### Client Cannot Connect
+
 ```bash
 # Test connectivity
-docker exec cgc-mcp python3 -c "
-from neo4j import GraphDatabase
-driver = GraphDatabase.driver('bolt://neo4j:7687', auth=('neo4j', 'password'))
-driver.verify_connectivity()
-"
-```
-
-**Permission Errors**
-```bash
-id $USER  # Get your UID/GID
-# Update PUID and PGID in config
-```
-
-**Cannot Access Mounted Directories**
-```bash
-# Verify mount inside container
-docker exec cgc-mcp ls -la /workspace
-
-# Check permissions
-docker exec cgc-mcp stat /workspace/your-project
-```
-
-**Client Cannot Connect**
-```bash
-curl http://localhost:8045/healthz
 curl http://localhost:8045/mcp
+curl http://host-ip:8045/mcp
+curl -k https://localhost:8045/mcp
+curl -k https://host-ip:8045/mcp
+
+# Check firewall
+sudo ufw status
+
+# Verify container
+docker inspect codegraphcontext-mcp | grep IPAddress
 ```
 
-**CORS Errors**
-```yaml
-# Development
-environment:
-  - CORS=*
+#### Slow ARM Performance
 
-# Production
-environment:
-  - CORS=https://yourdomain.com
-```
+- Wait 30-60 seconds after start
+- Monitor: `docker logs -f codegraphcontext-mcp`
+- Check resources: `docker stats codegraphcontext-mcp`
+- Use faster storage (SSD vs SD card)
 
-**Job Processing Issues**
+### Debug Information
+
+When reporting issues, include:
+
 ```bash
-# Check job status via tool
-# "List all jobs" or "Check status of job <job_id>"
+# System info
+docker --version && uname -a
 
-# View logs
-docker logs cgc-mcp --tail 100 -f
+# Container logs
+docker logs codegraphcontext-mcp --tail 200 > logs.txt
+
+# Container config
+docker inspect codegraphcontext-mcp > inspect.json
 ```
 
 ---
 
-## Resources & Support
+## Additional Resources
 
 ### Documentation
-- 📚 [PyPI Package](https://pypi.org/project/codegraphcontext/)
-- 📦 [GitHub Repository](https://github.com/Shashankss1205/CodeGraphContext)
-- 📖 [Full Documentation](https://shashankss1205.github.io/CodeGraphContext/)
-- 🎥 [Demo Video](https://youtu.be/KYYSdxhg1xU)
-- 💬 [Discord Community](https://discord.gg/dR4QY32uYQ)
+- 📚 [CodeGraphContext Official Docs](https://github.com/nicholasgriffintn/codegraphcontext-mcp)
+- 📦 [NPM Package](https://www.npmjs.com/package/codegraphcontext-mcp)
+- 🔧 [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
 
-### Neo4j Resources
-- 📘 [Neo4j Documentation](https://neo4j.com/docs/)
-- 🎓 [GraphAcademy](https://graphacademy.neo4j.com/)
-- 📊 [Cypher Language](https://neo4j.com/docs/cypher-manual/)
+### Docker Resources
+- 🐳 [Docker Compose Best Practices](https://docs.docker.com/compose/production/)
+- 🌐 [Docker Networking](https://docs.docker.com/network/)
+- 🛡️ [Docker Security](https://docs.docker.com/engine/security/)
+
+### Monitoring
+- 📊 [Diun - Update Notifier](https://crazymax.dev/diun/)
+- ⚡ [Watchtower](https://containrrr.dev/watchtower/)
+
+---
+
+## 😎 Buy Me a Coffee ☕︎
+**Your support encourages me to keep creating/supporting my open-source projects.** If you found value in this project, you can buy me a coffee to keep me inspired.
+
+<p align="center">
+  <a href="https://07mekayel07.gumroad.com/coffee" target="_blank">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="217" height="60">
+  </a>
+</p>
+
+## Support & License
 
 ### Getting Help
 
 **Docker Image Issues:**
-- [GitHub Issues](https://github.com/MekayelAnik/codegraphcontext-mcp/issues)
-- [Discussions](https://github.com/MekayelAnik/codegraphcontext-mcp/discussions)
+- GitHub: [codegraphcontext-mcp-docker/issues](https://github.com/MekayelAnik/codegraphcontext-mcp/issues)
 
-**Package Issues:**
-- [CodeGraphContext Issues](https://github.com/Shashankss1205/CodeGraphContext/issues)
-- [Discord](https://discord.gg/dR4QY32uYQ)
+**CodeGraphContext MCP Issues:**
+- GitHub: [nicholasgriffintn/codegraphcontext-mcp/issues](https://github.com/nicholasgriffintn/codegraphcontext-mcp/issues)
+- Website: [github.com/nicholasgriffintn/codegraphcontext-mcp](https://github.com/nicholasgriffintn/codegraphcontext-mcp/)
 
-### Updating
+### Contributing
 
-```bash
-# Docker Compose
-docker compose pull
-docker compose up -d
+We welcome contributions:
+1. Report bugs via GitHub Issues
+2. Suggest features
+3. Improve documentation
+4. Test beta releases
 
-# Docker CLI
-docker pull mekayelanik/codegraphcontext-mcp:stable
-docker stop cgc-mcp && docker rm cgc-mcp
-# Run your docker run command again
-```
+### License
 
+GPL License. See [LICENSE](https://raw.githubusercontent.com/MekayelAnik/codegraphcontext-mcp-docker/refs/heads/main/LICENSE) for details.
 
-## Buy Me a Coffee
+CodeGraphContext MCP server has its own license - see [Main NPM repo](https://github.com/nicholasgriffintn/codegraphcontext-mcp).
 
-**Your support encourages me to keep creating/supporting my open-source projects.** If you found value in this project, you can buy me a coffee to keep me inspired.
+---
 
-<p align="center">
-<a href="https://07mekayel07.gumroad.com/coffee" target="_blank">
-<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="217" height="60">
-</a>
-</p>
-
-
-<p><strong> - Major Changes</strong></p>
+### Major Changes
 
 <ul>
-  <li><strong>0.1.35:</strong> - ⚠️⚠️⚠️ Added working APY_KEY authentication ⚠️⚠️⚠️</li>
+  <li><strong>Initial Release:</strong> Full CI/CD pipeline with HAProxy, HTTPS/TLS, QUIC/HTTP3, API key auth</li>
 </ul>
 
+<p></p>
 
-## License
+<div align="center">
 
-Docker Image GPL License - See [LICENSE](https://raw.githubusercontent.com/MekayelAnik/codegraphcontext-mcp-docker/refs/heads/main/LICENSE)
+[⬆ Back to Top](#codegraphcontext-mcp-server)
 
-Main Project MIT License - See [LICENSE](https://raw.githubusercontent.com/Shashankss1205/CodeGraphContext/refs/heads/main/LICENSE)
-
-**Disclaimer:** Unofficial Docker image for [CodeGraphContext](https://github.com/Shashankss1205/CodeGraphContext). Not affiliated with Neo4j or Anthropic. Users are responsible for proper Neo4j licensing, security, and compliance.
-
-**Privacy:** This Docker image does not collect, store, or transmit your code or personal data. All data resides on Neo4j instance of your choice.
+</div>

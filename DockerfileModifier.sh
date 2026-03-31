@@ -47,7 +47,7 @@ RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/banner.sh /usr/local/bi
     && chmod +r /usr/local/bin/build-timestamp.txt \\
     && ln -sf /usr/sbin/gosu /usr/local/bin/su-exec
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl gosu iproute2 netcat-openbsd libatomic1 haproxy dos2unix \\
+RUN apt-get update && apt-get install -y --no-install-recommends curl gosu iproute2 netcat-openbsd libatomic1 haproxy dos2unix openssl \\
     && dos2unix /usr/local/bin/*.sh \\
     && apt-get purge dos2unix -y \\
     && ln -sf /usr/sbin/gosu /usr/local/bin/su-exec \\
