@@ -21,6 +21,11 @@ on:
         description: Base image used by DockerfileModifier
         required: true
         type: string
+      nvm_version:
+        description: NVM version to install inside the container
+        required: false
+        type: string
+        default: '0.40.3'
       haproxy_image:
         description: HAProxy image for QUIC/H3 support (GHCR mirror with Docker Hub fallback)
         required: false
@@ -238,8 +243,8 @@ jobs:
         run: |
           set -euo pipefail
           echo "Using base image: ${{ steps.sanitize.outputs.base_image_default }}"
-          mkdir -p build_data
-          echo "${{ steps.sanitize.outputs.base_image_default }}" > ./build_data/base-image
+          mkdir -p resources/build_data
+          echo "${{ steps.sanitize.outputs.base_image_default }}" > ./resources/build_data/base-image
 
           # Resolve HAProxy image with fallback: try GHCR mirror, fall back to Docker Hub
           HAPROXY_IMG="${{ steps.sanitize.outputs.haproxy_image }}"
@@ -249,10 +254,11 @@ jobs:
             HAPROXY_IMG="$HAPROXY_FALLBACK"
           fi
           echo "Using HAProxy image: $HAPROXY_IMG"
-          echo "$HAPROXY_IMG" > ./build_data/haproxy-image
+          echo "$HAPROXY_IMG" > ./resources/build_data/haproxy-image
 
-          echo "${{ matrix.version }}" > ./build_data/version
-          touch ./build_data/build
+          echo "${{ matrix.version }}" > ./resources/build_data/cgc_version
+          echo "${{ inputs.nvm_version }}" > ./resources/build_data/nvm_version
+          date -u +%Y-%m-%dT%H:%M:%SZ > ./resources/build-timestamp.txt
           bash ./DockerfileModifier.sh
           test -f ./Dockerfile.codegraphcontext-mcp
 
@@ -339,7 +345,6 @@ jobs:
           path: /tmp/digests
           pattern: digest-${{ matrix.version }}-*
           merge-multiple: true
-          if-no-files-found: warn
 
       - name: Create multi-arch manifest and push tags
         shell: bash

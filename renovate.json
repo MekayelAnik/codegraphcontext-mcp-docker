@@ -23,6 +23,15 @@
       "matchStrings": ["CRANE_FALLBACK_VERSIONS=\\(\"(?<currentValue>v[\\d.]+)\""],
       "depNameTemplate": "google/go-containerregistry",
       "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Track NVM version in workflows",
+      "managerFilePatterns": ["/(^|/).github/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": ["NVM_VERSION[^\\d]*'(?<currentValue>\\d+\\.\\d+\\.\\d+)'"],
+      "depNameTemplate": "nvm-sh/nvm",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
     }
   ],
   "labels": [

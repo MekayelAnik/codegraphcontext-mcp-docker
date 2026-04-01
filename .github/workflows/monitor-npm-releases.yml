@@ -16,7 +16,7 @@ on:
           - force-promote-stable
         default: auto-check
       versions:
-        description: Optional versions to build (comma-separated). Empty = auto from NPM.
+        description: Optional versions to build (comma-separated). Empty = auto from PyPI.
         required: false
         type: string
         default: ''
@@ -71,6 +71,7 @@ env:
   BUILDKIT_STEP_LOG_MAX_SPEED: '100000000'
   BUILDKIT_PROGRESS: 'plain'
   DOCKER_BUILDKIT_INLINE_CACHE: '1'
+  NVM_VERSION: ${{ vars.NVM_VERSION || '0.40.3' }}
 
 jobs:
   quick-check:
@@ -79,7 +80,7 @@ jobs:
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
     steps:
-      - name: Compare NPM latest against stored state
+      - name: Compare PyPI latest against stored state
         id: check
         shell: bash
         env:
@@ -163,7 +164,7 @@ jobs:
         uses: ./.github/actions/preflight-shell-tests
 
   fetch-releases:
-    name: Fetch and filter NPM releases
+    name: Fetch and filter PyPI releases
     needs: [quick-check]
     if: needs.quick-check.outputs.should_run == 'true'
     runs-on: ${{ vars.ACTION_RUNNER_VERSION || 'ubuntu-latest' }}
@@ -218,6 +219,7 @@ jobs:
       build_profile: ${{ github.event.inputs.build_profile || 'production' }}
       force_build: ${{ needs.fetch-releases.outputs.normalized_force_build }}
       base_image_default: ${{ github.event.inputs.base_image || vars.BASE_IMAGE_DEFAULT || 'python:3.13-slim' }}
+      nvm_version: ${{ vars.NVM_VERSION || '0.40.3' }}
       haproxy_image: ${{ vars.HAPROXY_IMAGE || 'haproxy:lts' }}
       ghcr_repo: ${{ vars.GHCR_REPO || format('ghcr.io/{0}/codegraphcontext-mcp', github.repository_owner) }}
       dockerhub_repo: ${{ vars.DOCKERHUB_REPO || 'mekayelanik/codegraphcontext-mcp' }}
@@ -308,7 +310,7 @@ jobs:
           EXISTING_VERSION=""
           EXISTING_SINCE=""
           if [[ -f state.json ]]; then
-            EXISTING_VERSION="$(jq -r '.npm_latest_version // ""' state.json)"
+            EXISTING_VERSION="$(jq -r '.pypi_latest_version // .npm_latest_version // ""' state.json)"
             EXISTING_SINCE="$(jq -r '.latest_version_since // ""' state.json)"
           fi
 
@@ -325,7 +327,7 @@ jobs:
             --arg v "$LATEST" \
             --arg t "$NOW" \
             --arg s "$SINCE" \
-            '{npm_latest_version: $v, updated_at: $t, latest_version_since: $s}' > state.json
+            '{pypi_latest_version: $v, updated_at: $t, latest_version_since: $s}' > state.json
 
           git add state.json
 
@@ -335,7 +337,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "state: update npm_latest_version to ${LATEST}"
+          git commit -m "state: update pypi_latest_version to ${LATEST}"
           git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:pipeline-state
 
   update-readme-version:
