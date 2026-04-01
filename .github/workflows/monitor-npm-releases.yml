@@ -62,6 +62,7 @@ env:
   DOCKERHUB_REPO: ${{ vars.DOCKERHUB_REPO || 'mekayelanik/codegraphcontext-mcp' }}
   GHCR_REPO: ${{ vars.GHCR_REPO || format('ghcr.io/{0}/codegraphcontext-mcp', github.repository_owner) }}
   DEFAULT_PLATFORMS: ${{ vars.DEFAULT_PLATFORMS || 'linux/amd64,linux/arm64' }}
+  EXCLUDE_VERSIONS: ${{ vars.EXCLUDE_VERSIONS || '' }}
   BASE_IMAGE_DEFAULT: ${{ github.event.inputs.base_image || vars.BASE_IMAGE_DEFAULT || 'python:3.13-slim' }}
   HAPROXY_IMAGE: ${{ vars.HAPROXY_IMAGE || 'haproxy:lts' }}
   EXPORT_CACHE_CONCURRENCY: '4'
@@ -204,6 +205,7 @@ jobs:
           PYPI_PACKAGE="${PYPI_PACKAGE}" \
           PYPI_REGISTRY="${PYPI_REGISTRY}" \
           MAX_VERSIONS="${MAX_VERSIONS}" \
+          EXCLUDE_VERSIONS="${EXCLUDE_VERSIONS}" \
           bash .github/scripts/fetch-releases-pypi.sh
 
   build-versions:
