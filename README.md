@@ -510,8 +510,8 @@ docker inspect codegraphcontext-mcp > inspect.json
 ## Additional Resources
 
 ### Documentation
-- 📚 [CodeGraphContext Official Docs](https://github.com/nicholasgriffintn/codegraphcontext-mcp)
-- 📦 [NPM Package](https://www.npmjs.com/package/codegraphcontext-mcp)
+- 📚 [CodeGraphContext Official Docs](https://github.com/CodeGraphContext/CodeGraphContext)
+- 📦 [PyPI Package](https://pypi.org/project/codegraphcontext/)
 - 🔧 [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
 
 ### Docker Resources
@@ -539,11 +539,11 @@ docker inspect codegraphcontext-mcp > inspect.json
 ### Getting Help
 
 **Docker Image Issues:**
-- GitHub: [codegraphcontext-mcp-docker/issues](https://github.com/MekayelAnik/codegraphcontext-mcp/issues)
+- GitHub: [codegraphcontext-mcp-docker/issues](https://github.com/MekayelAnik/codegraphcontext-mcp-docker/issues)
 
 **CodeGraphContext MCP Issues:**
-- GitHub: [nicholasgriffintn/codegraphcontext-mcp/issues](https://github.com/nicholasgriffintn/codegraphcontext-mcp/issues)
-- Website: [github.com/nicholasgriffintn/codegraphcontext-mcp](https://github.com/nicholasgriffintn/codegraphcontext-mcp/)
+- GitHub: [CodeGraphContext/CodeGraphContext/issues](https://github.com/CodeGraphContext/CodeGraphContext/issues)
+- Website: [github.com/CodeGraphContext/CodeGraphContext](https://github.com/CodeGraphContext/CodeGraphContext/)
 
 ### Contributing
 
@@ -557,7 +557,7 @@ We welcome contributions:
 
 GPL License. See [LICENSE](https://raw.githubusercontent.com/MekayelAnik/codegraphcontext-mcp-docker/refs/heads/main/LICENSE) for details.
 
-CodeGraphContext MCP server has its own license - see [Main NPM repo](https://github.com/nicholasgriffintn/codegraphcontext-mcp).
+CodeGraphContext MCP server has its own license - see [Main repo](https://github.com/CodeGraphContext/CodeGraphContext).
 
 ---
 
