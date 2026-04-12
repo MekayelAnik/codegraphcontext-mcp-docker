@@ -99,6 +99,8 @@ services:
     restart: unless-stopped
     ports:
       - "8045:8045"
+    volumes:
+      - codegraphcontext-cache:/home/node/.cache   # Persist cache for future embedding support
     environment:
       - PORT=8045
       - INTERNAL_PORT=38046
@@ -113,6 +115,10 @@ services:
       # - API_KEY=replace-with-strong-secret
     hostname: codegraphcontext-mcp
     domainname: local
+
+volumes:
+  codegraphcontext-cache:
+    driver: local
 ```
 
 **Deploy:**
@@ -124,10 +130,12 @@ docker compose logs -f codegraphcontext-mcp
 ### Docker CLI
 
 ```bash
+docker volume create codegraphcontext-cache
 docker run -d \
   --name=codegraphcontext-mcp \
   --restart=unless-stopped \
   -p 8045:8045 \
+  -v codegraphcontext-cache:/home/node/.cache \
   -e PORT=8045 \
   -e INTERNAL_PORT=38046 \
   -e PUID=1000 \

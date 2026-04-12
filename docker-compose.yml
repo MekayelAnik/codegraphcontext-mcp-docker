@@ -1,0 +1,29 @@
+services:
+  codegraphcontext-mcp:
+    image: mekayelanik/codegraphcontext-mcp:latest
+    container_name: codegraphcontext-mcp
+    environment:
+      - PORT=8045
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+      - NODE_ENV=production
+      - PROTOCOL=SHTTP
+      - ENABLE_HTTPS=false
+      - HTTP_VERSION_MODE=auto
+      # Optional: require Bearer token auth at HAProxy layer
+      # - API_KEY=replace-with-strong-secret
+      # Optional: CORS origins (comma-separated, or * for all)
+      # - CORS=*
+    ports:
+      - "8045:8045"
+    volumes:
+      # Mount your repository directories for code analysis
+      - /path/to/your/repos:/data:ro
+      # Persistent cache for future embedding support (HuggingFace, ONNX, etc.)
+      - codegraphcontext-cache:/home/node/.cache
+    restart: unless-stopped
+
+volumes:
+  codegraphcontext-cache:
+    driver: local

@@ -693,6 +693,13 @@ main() {
         prepare_tls_pem "$TLS_CERT_PATH" "$TLS_KEY_PATH" "$TLS_PEM_PATH" "$TLS_DAYS" "$TLS_CN" "$TLS_SAN"
     fi
 
+    # Ensure cache directory exists for future embedding support (HuggingFace, ONNX, etc.)
+    # Without this, libraries try to write cache into /usr/local/lib/node_modules/
+    # which is read-only for the node user, causing EACCES errors.
+    mkdir -p /home/node/.cache
+    chown "${PUID}:${PGID}" /home/node/.cache 2>/dev/null || true
+    export XDG_CACHE_HOME="/home/node/.cache"
+
     resolve_listener_protocols "$HTTP_VERSION_MODE"
     generate_haproxy_config
 
