@@ -81,7 +81,7 @@ env:
   BUILDKIT_STEP_LOG_MAX_SPEED: '100000000'
   BUILDKIT_PROGRESS: 'plain'
   DOCKER_BUILDKIT_INLINE_CACHE: '1'
-  NVM_VERSION: ${{ vars.NVM_VERSION || '0.40.3' }}
+  NVM_VERSION: ${{ vars.NVM_VERSION || '0.40.4' }}
 
 jobs:
   quick-check:
@@ -235,7 +235,7 @@ jobs:
       build_profile: ${{ github.event.inputs.build_profile || 'production' }}
       force_build: ${{ needs.fetch-releases.outputs.normalized_force_build }}
       base_image_default: ${{ github.event.inputs.base_image || vars.BASE_IMAGE_DEFAULT || 'python:3.13-slim' }}
-      nvm_version: ${{ vars.NVM_VERSION || '0.40.3' }}
+      nvm_version: ${{ vars.NVM_VERSION || '0.40.4' }}
       haproxy_image: ${{ vars.HAPROXY_IMAGE || 'haproxy:lts' }}
       ghcr_repo: ${{ vars.GHCR_REPO || format('ghcr.io/{0}/codegraphcontext-mcp', github.repository_owner) }}
       dockerhub_repo: ${{ vars.DOCKERHUB_REPO || 'mekayelanik/codegraphcontext-mcp' }}
