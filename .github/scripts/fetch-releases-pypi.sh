@@ -16,7 +16,7 @@ DATE_TAG="$(date +%d%m%Y)"
 echo "date_tag=$DATE_TAG" >> "$GITHUB_OUTPUT"
 
 # Handle manual version input
-if [[ -n "$MANUAL_VERSIONS_RAW" && "$REQUESTED_ACTION" == "build-versions" ]]; then
+if [[ -n "$MANUAL_VERSIONS_RAW" && "$REQUESTED_ACTION" == "build" ]]; then
     IFS=',' read -ra MANUAL_ARRAY <<< "$MANUAL_VERSIONS_RAW"
     VERSIONS_OLDEST=""
     for v in "${MANUAL_ARRAY[@]}"; do
