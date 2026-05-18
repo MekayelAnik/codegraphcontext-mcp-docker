@@ -73,7 +73,7 @@ env:
   GHCR_REPO: ${{ vars.GHCR_REPO || format('ghcr.io/{0}/codegraphcontext-mcp', github.repository_owner) }}
   DEFAULT_PLATFORMS: ${{ vars.DEFAULT_PLATFORMS || 'linux/amd64,linux/arm64' }}
   EXCLUDE_VERSIONS: ${{ vars.EXCLUDE_VERSIONS || '' }}
-  BASE_IMAGE_DEFAULT: ${{ github.event.inputs.base_image || vars.BASE_IMAGE_DEFAULT || 'python:3.13-slim' }}
+  BASE_IMAGE_DEFAULT: ${{ github.event.inputs.base_image || vars.BASE_IMAGE_DEFAULT || 'python:3.14-slim' }}
   HAPROXY_IMAGE: ${{ vars.HAPROXY_IMAGE || 'haproxy:lts' }}
   EXPORT_CACHE_CONCURRENCY: '4'
   EXPORT_LAYERS_CONCURRENCY: '4'
@@ -234,7 +234,7 @@ jobs:
       versions_json: ${{ needs.fetch-releases.outputs.versions_json }}
       build_profile: ${{ github.event.inputs.build_profile || 'production' }}
       force_build: ${{ needs.fetch-releases.outputs.normalized_force_build }}
-      base_image_default: ${{ github.event.inputs.base_image || vars.BASE_IMAGE_DEFAULT || 'python:3.13-slim' }}
+      base_image_default: ${{ github.event.inputs.base_image || vars.BASE_IMAGE_DEFAULT || 'python:3.14-slim' }}
       nvm_version: ${{ vars.NVM_VERSION || '0.40.4' }}
       haproxy_image: ${{ vars.HAPROXY_IMAGE || 'haproxy:lts' }}
       ghcr_repo: ${{ vars.GHCR_REPO || format('ghcr.io/{0}/codegraphcontext-mcp', github.repository_owner) }}

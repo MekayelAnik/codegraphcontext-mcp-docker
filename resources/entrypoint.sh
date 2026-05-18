@@ -554,6 +554,21 @@ generate_haproxy_config() {
     escaped_bind_params="$(escape_sed_replacement "$BIND_PARAMS")"
     escaped_quic_bind_line="$(escape_sed_replacement "$QUIC_BIND_LINE")"
 
+    # Concurrency caps. Bound HAProxy-level acceptance so a burst cannot
+    # saturate the upstream stdio bridge. Empty = no cap.
+    local frontend_maxconn_clause=""
+    local server_maxconn_clause=""
+    if [[ "${HAPROXY_FRONTEND_MAXCONN:-0}" =~ ^[1-9][0-9]*$ ]]; then
+        frontend_maxconn_clause="maxconn ${HAPROXY_FRONTEND_MAXCONN}"
+    fi
+    if [[ "${HAPROXY_SERVER_MAXCONN:-0}" =~ ^[1-9][0-9]*$ ]]; then
+        server_maxconn_clause="maxconn ${HAPROXY_SERVER_MAXCONN}"
+    fi
+    local escaped_frontend_maxconn
+    local escaped_server_maxconn
+    escaped_frontend_maxconn="$(escape_sed_replacement "$frontend_maxconn_clause")"
+    escaped_server_maxconn="$(escape_sed_replacement "$server_maxconn_clause")"
+
     sed -e "s|__SERVER_PORT__|${PORT}|g" \
         -e "s|__BIND_PARAMS__|${escaped_bind_params}|g" \
         -e "s|__QUIC_BIND_LINE__|${escaped_quic_bind_line}|g" \
@@ -561,6 +576,8 @@ generate_haproxy_config() {
         -e "s|__SERVER_NAME__|${HAPROXY_SERVER_NAME}|g" \
         -e "s|__CORS_PREFLIGHT_CONDITION__|${cors_preflight_condition}|g" \
         -e "s|__CORS_RESPONSE_CONDITION__|${cors_response_condition}|g" \
+        -e "s|__FRONTEND_MAXCONN__|${escaped_frontend_maxconn}|g" \
+        -e "s|__SERVER_MAXCONN__|${escaped_server_maxconn}|g" \
         "$HAPROXY_TEMPLATE" > "${HAPROXY_CONFIG}.tmp"
 
     awk -v replacement="$api_key_check" -v replacement_cors="$cors_check" \
@@ -586,25 +603,73 @@ start_haproxy() {
 }
 
 start_mcp_server() {
-    local mcp_server_cmd="/opt/venv/bin/cgc mcp start"
+    # mcp-proxy session model: stateful by default — one stdio child shared
+    # across all sessions (multiplexed via JSON-RPC ids). Set MCP_PROXY_STATELESS=true
+    # only when full per-request isolation is required (memory-hostile).
+    MCP_PROXY_STATELESS="${MCP_PROXY_STATELESS:-false}"
+    # Cap virtual memory of the cgc stdio child (MiB; 0 disables).
+    CGC_MAX_MEM_MB="${CGC_MAX_MEM_MB:-0}"
+
+    # cgc is installed in /opt/venv. mcp-proxy is in the same venv after migration.
+    local cgc_argv=(/opt/venv/bin/cgc mcp start)
+
+    # mcp-proxy receives the stdio command as positional args after `--`,
+    # so prlimit can prefix the argv list directly.
+    if [[ "${CGC_MAX_MEM_MB}" =~ ^[1-9][0-9]*$ ]] && command -v prlimit >/dev/null 2>&1; then
+        local mem_bytes=$((CGC_MAX_MEM_MB * 1024 * 1024))
+        cgc_argv=(prlimit "--as=${mem_bytes}" -- "${cgc_argv[@]}")
+        echo "CodeGraphContext child memory cap: ${CGC_MAX_MEM_MB} MiB (prlimit --as)"
+    fi
+
+    # Build mcp-proxy CORS args. CORS env may be comma-separated origins or "*".
+    local cors_args=()
+    if [[ -n "${CORS:-}" ]]; then
+        local origin
+        for origin in ${CORS//,/ }; do
+            cors_args+=(--allow-origin "$origin")
+        done
+    fi
+    cors_args+=(--expose-header Mcp-Session-Id)
+
+    local stateless_args=()
+    if [[ "${MCP_PROXY_STATELESS,,}" == "true" ]]; then
+        stateless_args+=(--stateless)
+    else
+        stateless_args+=(--no-stateless)
+    fi
+
+    local mode_tag="stateful"
+    [[ "${MCP_PROXY_STATELESS,,}" == "true" ]] && mode_tag="stateless"
 
     case "${PROTOCOL^^}" in
-        SHTTP|STREAMABLEHTTP)
-            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --streamableHttpPath /mcp --outputTransport streamableHttp --healthEndpoint /healthz --stdio "$mcp_server_cmd")
-            PROTOCOL_DISPLAY="SHTTP/streamableHttp"
-            ;;
-        SSE)
-            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --ssePath /sse --outputTransport sse --healthEndpoint /healthz --stdio "$mcp_server_cmd")
-            PROTOCOL_DISPLAY="SSE/Server-Sent Events"
+        SHTTP|STREAMABLEHTTP|SSE)
+            # mcp-proxy exposes both /mcp (StreamableHTTP) and /sse simultaneously.
+            CMD_ARGS=(/opt/venv/bin/mcp-proxy
+                --host 127.0.0.1
+                --port "$INTERNAL_PORT"
+                --pass-environment
+                "${stateless_args[@]}"
+                "${cors_args[@]}"
+                --
+                "${cgc_argv[@]}")
+            PROTOCOL_DISPLAY="mcp-proxy: /mcp (StreamableHTTP) + /sse (${mode_tag})"
             ;;
         WS|WEBSOCKET)
-            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --messagePath /message --outputTransport ws --healthEndpoint /healthz --stdio "$mcp_server_cmd")
-            PROTOCOL_DISPLAY="WS/WebSocket"
+            echo "ERROR: WebSocket transport is not supported by mcp-proxy." >&2
+            echo "       Use PROTOCOL=SHTTP or PROTOCOL=SSE instead." >&2
+            exit 1
             ;;
         *)
             echo "Invalid PROTOCOL='${PROTOCOL}', using default ${DEFAULT_PROTOCOL}"
-            CMD_ARGS=(npx --yes supergateway --port "$INTERNAL_PORT" --streamableHttpPath /mcp --outputTransport streamableHttp --healthEndpoint /healthz --stdio "$mcp_server_cmd")
-            PROTOCOL_DISPLAY="SHTTP/streamableHttp"
+            CMD_ARGS=(/opt/venv/bin/mcp-proxy
+                --host 127.0.0.1
+                --port "$INTERNAL_PORT"
+                --pass-environment
+                "${stateless_args[@]}"
+                "${cors_args[@]}"
+                --
+                "${cgc_argv[@]}")
+            PROTOCOL_DISPLAY="mcp-proxy: /mcp (StreamableHTTP) + /sse (${mode_tag})"
             ;;
     esac
 

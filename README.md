@@ -44,13 +44,13 @@
 
 ## Overview
 
-CodeGraphContext MCP Server provides code analysis and graph-based context capabilities through the Model Context Protocol. Built for comprehensive codebase understanding.
+CodeGraphContext MCP Server provides code analysis and graph-based context capabilities through the Model Context Protocol. Built for comprehensive codebase understanding. The container uses [`mcp-proxy`](https://github.com/sparfenyuk/mcp-proxy) as the stdio<->HTTP/SSE bridge (replacing supergateway in stateful mode by default).
 
 ### Key Features
 
 ✨ **Multi-Architecture Support** - Native support for x86-64 and ARM64  
-🚀 **Multiple Transport Protocols** - HTTP, SSE, and WebSocket support  
-🔒 **Secure by Design** - Alpine-based with minimal attack surface  
+🚀 **Multiple Transport Protocols** - StreamableHTTP and SSE via mcp-proxy (exposed simultaneously)  
+🔒 **Secure by Design** - Slim Debian base with minimal attack surface  
 ⚡ **High Performance** - ZSTD compression for faster deployments  
 🎯 **Production Ready** - Stable releases with comprehensive testing  
 🔧 **Easy Configuration** - Simple environment variable setup
@@ -108,9 +108,22 @@ services:
       - PGID=1000
       - TZ=Asia/Dhaka
       - NODE_ENV=production
-      - PROTOCOL=HTTP
+      - PROTOCOL=SHTTP
+      # ENABLE_HTTPS=false is plaintext over the wire. Safe ONLY for loopback
+      # / trusted internal networks. Set to "true" for any public, multi-host,
+      # or untrusted deployment — HAProxy auto-generates a self-signed cert
+      # if none is mounted under /etc/haproxy/certs/.
       - ENABLE_HTTPS=false
       - HTTP_VERSION_MODE=auto
+      # mcp-proxy session model. Stateful by default — one stdio child shared
+      # across all sessions (multiplexed via JSON-RPC ids). Set to true only
+      # if full per-request isolation is required (memory-hostile).
+      - MCP_PROXY_STATELESS=false
+      # Cap virtual memory of the cgc stdio child (MiB; 0 disables)
+      - CGC_MAX_MEM_MB=2048
+      # HAProxy concurrency caps (0 disables)
+      - HAPROXY_FRONTEND_MAXCONN=64
+      - HAPROXY_SERVER_MAXCONN=16
       # Optional: require Bearer token auth at HAProxy layer
       # - API_KEY=replace-with-strong-secret
     hostname: codegraphcontext-mcp
@@ -150,11 +163,11 @@ docker run -d \
 
 ### Access Endpoints
 
-| Protocol | Endpoint | Use Case |
-|:---------|:---------|:---------|
-| **HTTP** | `http://host-ip:8045/mcp` | Best compatibility (recommended) |
-| **SSE** | `http://host-ip:8045/sse` | Real-time streaming |
-| **WebSocket** | `ws://host-ip:8045/message` | Bidirectional communication |
+| Protocol | Endpoint | Description |
+|:---------|:---------|:------------|
+| **SHTTP** | `http://host-ip:8045/mcp` | Streamable HTTP (default; exposed simultaneously) |
+| **SSE** | `http://host-ip:8045/sse` | Server-Sent Events (exposed simultaneously) |
+| **Health** | `http://host-ip:8045/healthz` | Health check (answered by HAProxy, sub-millisecond) |
 
 When HTTPS is enabled (`ENABLE_HTTPS=true`), use TLS endpoints:
 
@@ -162,8 +175,9 @@ When HTTPS is enabled (`ENABLE_HTTPS=true`), use TLS endpoints:
 |:---------|:---------|
 | **SHTTP** | `https://host-ip:8045/mcp` |
 | **SSE** | `https://host-ip:8045/sse` |
-| **WebSocket** | `wss://host-ip:8045/message` |
 
+> WebSocket transport was dropped in the migration to `mcp-proxy`. Setting `PROTOCOL=WS` will now fail at startup with a clear message. Use `SHTTP` or `SSE` instead.
+>
 > ⚠️ **Security Warning:** The container now defaults to HTTP (`ENABLE_HTTPS=false`) for easier local setup. Use `ENABLE_HTTPS=true` for production, public networks, or any untrusted environment.
 >
 > ⏱️ **ARM Devices:** Allow 30-60 seconds for initialization before accessing endpoints.
@@ -176,8 +190,12 @@ When HTTPS is enabled (`ENABLE_HTTPS=true`), use TLS endpoints:
 
 | Variable | Default | Description |
 |:---------|:-------:|:------------|
-| `PORT` | `8045` | Internal server port |
-| `INTERNAL_PORT` | `38046` | Internal MCP server port used by supergateway |
+| `PORT` | `8045` | External HAProxy port |
+| `INTERNAL_PORT` | `38046` | Internal mcp-proxy port (loopback) |
+| `MCP_PROXY_STATELESS` | `false` | Share one stdio child across sessions; flip to `true` for per-request isolation |
+| `CGC_MAX_MEM_MB` | `0` | Virtual memory cap on cgc child (`0` disables) |
+| `HAPROXY_FRONTEND_MAXCONN` | _(unset)_ | Cap concurrent connections at HAProxy frontend |
+| `HAPROXY_SERVER_MAXCONN` | _(unset)_ | Cap concurrent connections to mcp-proxy backend |
 | `PUID` | `1000` | User ID for file permissions |
 | `PGID` | `1000` | Group ID for file permissions |
 | `TZ` | `Asia/Dhaka` | Container timezone ([TZ database](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)) |
@@ -221,6 +239,15 @@ When HTTPS is enabled (`ENABLE_HTTPS=true`), use TLS endpoints:
 - **IP allowlist:** Set `IP_ALLOWLIST=10.0.0.0/8,192.168.1.0/24` to allow only listed IPs/CIDRs. All others receive HTTP 403. Localhost is always allowed.
 - All features default to disabled. Combine as needed — blocklist is checked before allowlist.
 
+### Memory & Concurrency Tuning
+
+`mcp-proxy` runs the CodeGraphContext backend as a single long-lived stdio child and multiplexes all client sessions through it via JSON-RPC ids. This caps the *expected* memory footprint; the knobs below cap the *worst case*:
+
+- `MCP_PROXY_STATELESS=false` (default) — share one backend child across all sessions. Recommended for almost every deployment. Flip to `true` only when you genuinely need per-request isolation.
+- `CGC_MAX_MEM_MB=2048` — caps the virtual-memory size of the cgc child via `prlimit --as`. A runaway indexing job gets OOM-killed by the kernel before it exhausts the host.
+- `HAPROXY_FRONTEND_MAXCONN=64` + `HAPROXY_SERVER_MAXCONN=16` — bound concurrent connections at the HAProxy layer so a burst cannot saturate the upstream stdio bridge.
+- `/healthz` is answered directly by HAProxy with a local 200 — Docker's container healthcheck no longer depends on upstream MCP readiness.
+
 ### User & Group IDs
 
 Find your IDs and set them to avoid permission issues:
@@ -245,16 +272,16 @@ id username
 
 ### Transport Support
 
-| Client | HTTP | SSE | WebSocket | Recommended |
-|:-------|:----:|:---:|:---------:|:------------|
-| **VS Code (Cline/Roo-Cline)** | ✅ | ✅ | ❌ | HTTP |
-| **Claude Desktop** | ✅ | ✅ | ⚠️* | HTTP |
-| **Claude CLI** | ✅ | ✅ | ⚠️* | HTTP |
-| **Codex CLI** | ✅ | ✅ | ⚠️* | HTTP |
-| **Codeium (Windsurf)** | ✅ | ✅ | ⚠️* | HTTP |
-| **Cursor** | ✅ | ✅ | ⚠️* | HTTP |
+| Client | SHTTP | SSE | Recommended |
+|:-------|:-----:|:---:|:------------|
+| **VS Code (Cline/Roo-Cline)** | ✅ | ✅ | SHTTP |
+| **Claude Desktop** | ✅ | ✅ | SHTTP |
+| **Claude CLI** | ✅ | ✅ | SHTTP |
+| **Codex CLI** | ✅ | ✅ | SHTTP |
+| **Codeium (Windsurf)** | ✅ | ✅ | SHTTP |
+| **Cursor** | ✅ | ✅ | SHTTP |
 
-> ⚠️ *WebSocket is experimental ([Issue #1288](https://github.com/modelcontextprotocol/modelcontextprotocol/issues/1288))
+> WebSocket transport was dropped in the migration to `mcp-proxy`.
 
 ---
 
@@ -533,6 +560,7 @@ docker inspect codegraphcontext-mcp > inspect.json
 ### Documentation
 - 📚 [CodeGraphContext Official Docs](https://github.com/CodeGraphContext/CodeGraphContext)
 - 📦 [PyPI Package](https://pypi.org/project/codegraphcontext/)
+- 🌉 [mcp-proxy (stdio<->HTTP/SSE bridge)](https://github.com/sparfenyuk/mcp-proxy)
 - 🔧 [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
 
 ### Docker Resources
