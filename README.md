@@ -74,7 +74,7 @@ CodeGraphContext MCP Server provides code analysis and graph-based context capab
 |:----|:---------:|:------------|:---------|
 | `stable` | ⭐⭐⭐ | Most stable release | **Recommended for production** |
 | `latest` | ⭐⭐⭐ | Latest stable release | Stay current with stable features |
-| `0.4.9` | ⭐⭐⭐ | Specific version | Version pinning for consistency |
+| `0.4.10` | ⭐⭐⭐ | Specific version | Version pinning for consistency |
 | `beta` | ⚠️ | Beta releases | **Testing only** |
 
 ### System Requirements
