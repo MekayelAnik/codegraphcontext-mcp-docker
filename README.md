@@ -283,6 +283,18 @@ id username
 
 > WebSocket transport was dropped in the migration to `mcp-proxy`.
 
+### Auto-Wiring Utility
+
+If you have `jq` installed, you can use the included `wire-clients.sh` script to automatically inject the SSE configuration into the global settings of your installed agents (Cursor, VSCode, Codex, Gemini, Kimi, OpenCode, Cline, and Roo Code).
+
+```bash
+# Wires clients to the default http://localhost:8045/sse
+./wire-clients.sh
+
+# Or specify a custom URL if running on a different port/host
+./wire-clients.sh http://my-server:8045/sse
+```
+
 ---
 
 ### VS Code (Cline/Roo-Cline)
