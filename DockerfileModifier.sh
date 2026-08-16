@@ -72,7 +72,7 @@ RUN --mount=type=cache,target=/home/node/.cache/pip,uid=1000,gid=1000 /usr/local
 # Install mcp-proxy into the same venv (replaces supergateway as the stdio<->HTTP bridge)
 RUN --mount=type=cache,target=/home/node/.cache/pip,uid=1000,gid=1000 \\
     /opt/venv/bin/pip install --no-cache-dir ${MCP_PROXY_PKG} && \\
-    /opt/venv/bin/mcp-proxy --version || true
+    /opt/venv/bin/mcp-proxy --version
 
 USER root
 
